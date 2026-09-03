@@ -15,9 +15,31 @@ import { segmentDose, classifyPm25 } from "./exposure";
 import { mulberry32, hashStringToSeed } from "./rng";
 import { getDataModeStatus } from "./dataMode";
 import { getLatestHistoricalReading, ENVIRONMENT_SOURCE_LABEL } from "./realDataEngine";
+import { aqiToPm25 } from "./aqiConversion";
+import { haversineKm } from "./geo";
+import type { MalaysiaStation } from "./liveEnvironment";
 import type { RoadType, TrafficLevel, ExposureLevel, MeasurementKind, EnvironmentalMode } from "./types";
 
 const SYNTHETIC_PM25_SOURCE = "Prototype synthetic environmental model";
+const LIVE_STATIONS_SOURCE = "Real-time DOE/JAS stations nationwide via WAQI — nearest station to each road segment";
+
+// Nearest of the real, currently-reporting nationwide stations to a point
+// — the "average of the area the route passes through" comes for free at
+// the route level: each segment picks whichever real station is actually
+// closest to it, and the route's overall avgPm25 is the average of those
+// real, per-segment values.
+function nearestLiveStation(lat: number, lng: number, stations: MalaysiaStation[]): { station: MalaysiaStation; distanceKm: number } | null {
+  let best: MalaysiaStation | null = null;
+  let bestDistanceKm = Infinity;
+  for (const s of stations) {
+    const d = haversineKm({ lat, lng }, { lat: s.lat, lng: s.lng });
+    if (d < bestDistanceKm) {
+      bestDistanceKm = d;
+      best = s;
+    }
+  }
+  return best ? { station: best, distanceKm: Math.round(bestDistanceKm * 10) / 10 } : null;
+}
 
 export interface RouteExposureSegment {
   segmentId: string;
@@ -53,18 +75,24 @@ export function computeRouteExposure(
   routeId: string,
   route: OsrmRouteResult,
   hour: number,
-  dayOfWeek: number
+  dayOfWeek: number,
+  liveStations: MalaysiaStation[] = []
 ): RouteExposureResult {
   const rng = mulberry32(hashStringToSeed(routeId));
   const weather = sampleWeather(hour, rng);
-  // Real per-segment station matching is only attempted when a researcher-
-  // supplied historical DOE/JAS CSV is actually loaded (MODE A). Live MODE B
-  // is intentionally NOT queried per-segment here — a route can have dozens
-  // of segments, and hammering the live API for each one on every route
-  // request isn't a "sensible" use of a rate-limited free token; the current
-  // reading shown elsewhere already surfaces live data when configured.
+  // Tier 1: a researcher-supplied historical DOE/JAS CSV (MODE A), if
+  // loaded — the most precise real source when available.
+  // Tier 2 (new): the same real, currently-reporting nationwide stations
+  // shown on /air-quality (fetched once per route request by the caller,
+  // not once per segment — a route can have dozens of segments, and
+  // re-fetching per segment would be both slow and a wasteful use of a
+  // rate-limited free API token). Each segment just picks whichever real
+  // station is nearest to it — a synchronous lookup against the small
+  // already-fetched list, no extra network calls here.
+  // Tier 3: the synthetic model, only when neither real source is available.
   const hasHistoricalStations = getDataModeStatus().hasRealEnvironmentData;
-  const environmentalMode: EnvironmentalMode = hasHistoricalStations ? "historical" : "synthetic";
+  const hasLiveStations = liveStations.length > 0;
+  const environmentalMode: EnvironmentalMode = hasHistoricalStations ? "historical" : hasLiveStations ? "live" : "synthetic";
 
   const segments: RouteExposureSegment[] = [];
   let totalExposure = 0;
@@ -92,6 +120,8 @@ export function computeRouteExposure(
     let stationDistanceKm: number | undefined;
 
     const historical = hasHistoricalStations ? getLatestHistoricalReading(midLat, midLng) : null;
+    const nearestLive = !historical && hasLiveStations ? nearestLiveStation(midLat, midLng, liveStations) : null;
+
     if (historical) {
       pm25 = historical.pm25;
       pm10 = historical.pm10 ?? Math.round(historical.pm25 * 1.7 * 10) / 10;
@@ -99,6 +129,13 @@ export function computeRouteExposure(
       pm25Source = ENVIRONMENT_SOURCE_LABEL;
       stationName = historical.stationName;
       stationDistanceKm = historical.distanceKm;
+    } else if (nearestLive) {
+      pm25 = aqiToPm25(nearestLive.station.aqi);
+      pm10 = Math.round(pm25 * 1.7 * 10) / 10; // AQI's bulk endpoint gives no per-pollutant breakdown
+      no2 = 0;
+      pm25Source = LIVE_STATIONS_SOURCE;
+      stationName = nearestLive.station.name;
+      stationDistanceKm = nearestLive.distanceKm;
     } else {
       const sampled = samplePollutants(hour, roadType, trafficLevel, weather.wind_speed, rng);
       pm25 = sampled.pm25;

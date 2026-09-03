@@ -315,10 +315,11 @@ export function RouteAdvisorClient({
                 { label: "Road network", value: recommended.roadNetworkSource },
                 {
                   label: "PM2.5 source",
-                  value:
-                    recommended.environmentalMode === "historical"
-                      ? "DOE/JAS station data (researcher-supplied historical CSV)"
-                      : "Prototype synthetic environmental model",
+                  // Reads the actual per-segment source rather than
+                  // re-deriving a coarse label from environmentalMode —
+                  // stays correct automatically if another real tier is
+                  // added later, instead of needing a matching update here.
+                  value: recommended.segments?.[0]?.pm25Source ?? "Prototype synthetic environmental model",
                 },
                 ...(recommended.segments?.find((s) => s.stationName)
                   ? [{ label: "Nearest station", value: recommended.segments.find((s) => s.stationName)!.stationName! }]

@@ -51,10 +51,17 @@ export interface OpenDosmLatest {
 let cache: { rows: OpenDosmRow[]; fetchedAt: number } | null = null;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-// The CSV's pollutant labels use Unicode superscripts (NO², O³) — normalise
-// to plain ASCII for lookups.
+// The CSV's pollutant labels are inconsistent — verified directly against
+// the live file: "PM 2.5" and "PM 10" carry a space (breaking a naive
+// match against "PM25"/"PM10"), while some historical exports use Unicode
+// superscripts (NO², O³) instead of plain digits. Strip both space AND dot
+// globally (not just the first occurrence) rather than assuming one style.
 function normalisePollutant(raw: string): string {
-  return raw.replace("²", "2").replace("³", "3").replace(".", "").trim().toUpperCase();
+  return raw
+    .replace(/²/g, "2")
+    .replace(/³/g, "3")
+    .replace(/[\s.]/g, "")
+    .toUpperCase();
 }
 
 async function loadRows(): Promise<OpenDosmRow[]> {

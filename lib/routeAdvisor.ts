@@ -6,6 +6,7 @@ import { predictExposureRate } from "./aiModel";
 import { mulberry32, hashStringToSeed } from "./rng";
 import { fetchDiverseRoadRoutes, type LatLng, type OsrmRouteResult } from "./routingEngine";
 import { computeRouteExposure } from "./routeExposure";
+import { fetchMalaysiaStations } from "./liveEnvironment";
 import { ADVISOR_HOUR } from "./routeScoring";
 
 export { ADVISOR_HOUR, PREFERENCE_WEIGHTS, scoreRoutes, type PreferenceKey } from "./routeScoring";
@@ -199,13 +200,21 @@ export async function getCandidateRoutesAsync(
   destinationLabel: string,
   hour: number = ADVISOR_HOUR
 ): Promise<{ routes: CandidateRoute[]; usedRealRoads: boolean }> {
-  const rawRoutes = await fetchDiverseRoadRoutes(origin, destination);
+  // Fetched once per request, not once per route/segment — every candidate
+  // route reuses the same real nationwide station list (see
+  // lib/routeExposure.ts for why per-segment fetching would be wasteful).
+  // fetchMalaysiaStations() itself returns [] with no network call when no
+  // live source is configured, so this is always safe to call.
+  const [rawRoutes, liveStations] = await Promise.all([
+    fetchDiverseRoadRoutes(origin, destination),
+    fetchMalaysiaStations(),
+  ]);
 
   if (rawRoutes) {
     const idBase = destinationLabel.replace(/\s+/g, "-").toLowerCase();
     const scored = rawRoutes.map((route, i) => ({
       route,
-      exposure: computeRouteExposure(`${idBase}-raw${i}`, route, hour, ADVISOR_DAY_OF_WEEK),
+      exposure: computeRouteExposure(`${idBase}-raw${i}`, route, hour, ADVISOR_DAY_OF_WEEK, liveStations),
     }));
 
     const byTime = [...scored].sort((a, b) => a.route.durationMin - b.route.durationMin);

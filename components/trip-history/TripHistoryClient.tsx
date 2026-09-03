@@ -15,11 +15,17 @@ import { List, Navigation } from "lucide-react";
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
+  // timeZone must be pinned explicitly — this renders server-side (trips
+  // come as props from a Server Component) and again on hydration; without
+  // a fixed zone the two can disagree whenever the server's system
+  // timezone differs from the visitor's browser, causing a React
+  // hydration mismatch (see components/ui/FreshnessLabel.tsx).
   return d.toLocaleString("en-MY", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Kuala_Lumpur",
   });
 }
 

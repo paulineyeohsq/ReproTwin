@@ -12,6 +12,10 @@ import { ExposureProvenance } from "@/components/ui/ExposureProvenance";
 import { cn } from "@/lib/cn";
 import { ArrowLeft } from "lucide-react";
 
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString("en-MY", { timeZone: "Asia/Kuala_Lumpur" });
+}
+
 export default function TripDetailsPage() {
   const params = useParams<{ id: string }>();
   const [trip, setTrip] = useState<RecordedTrip | null | undefined>(undefined);
@@ -56,7 +60,7 @@ export default function TripDetailsPage() {
           {trip.originLabel} → {trip.destinationLabel}
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          {new Date(trip.startedAt).toLocaleString("en-MY")} · {trip.selectedRoute.label} route
+          {formatDateTime(trip.startedAt)} · {trip.selectedRoute.label} route
         </p>
       </div>
 
@@ -157,8 +161,8 @@ export default function TripDetailsPage() {
                 {s.mode ? <EnvironmentalModeBadge mode={s.mode} /> : <span className="text-xs text-slate-400">{s.source}</span>}
               </div>
               <p className="text-xs text-slate-400">
-                Observed {new Date(s.timestamp).toLocaleString("en-MY")}
-                {s.retrievedAt && ` · Retrieved ${new Date(s.retrievedAt).toLocaleString("en-MY")}`}
+                Observed {formatDateTime(s.timestamp)}
+                {s.retrievedAt && ` · Retrieved ${formatDateTime(s.retrievedAt)}`}
               </p>
               <ExposureProvenance
                 steps={[
@@ -166,7 +170,7 @@ export default function TripDetailsPage() {
                   { label: "Source", value: s.source },
                   ...(s.stationName ? [{ label: "Station", value: `${s.stationName}${s.distanceKm !== undefined ? ` (${s.distanceKm} km away)` : ""}` }] : []),
                   { label: "PM2.5", value: `${s.pm25} µg/m³` },
-                  { label: "Observed at", value: new Date(s.timestamp).toLocaleString("en-MY") },
+                  { label: "Observed at", value: formatDateTime(s.timestamp) },
                   { label: "Measurement", value: s.measurement === "measured" ? "Measured" : "Estimated from monitoring data" },
                   ...(s.interpolationMethod ? [{ label: "Method", value: s.interpolationMethod }] : []),
                   { label: "Exposure contribution", value: `${trip.estimatedExposure} units (full ride)` },

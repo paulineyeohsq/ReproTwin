@@ -7,7 +7,13 @@ import { getAllTrips, type RecordedTrip } from "@/lib/tripStore";
 import { Navigation } from "lucide-react";
 
 function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString("en-MY", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString("en-MY", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Kuala_Lumpur",
+  });
 }
 
 export function MyRidesTab() {

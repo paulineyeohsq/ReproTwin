@@ -4,7 +4,12 @@ import { EnvironmentalModeBadge } from "./EnvironmentalModeBadge";
 function formatTime(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" });
+  // timeZone must be pinned explicitly — without it, toLocaleString uses
+  // the runtime's local system timezone, which differs between the
+  // server (e.g. Netlify's Lambda, UTC) and the visitor's browser, causing
+  // a React hydration mismatch (and a wrong time either way, for an app
+  // whose whole subject is Malaysia).
+  return d.toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kuala_Lumpur" });
 }
 
 // Renders the observation/retrieval timestamp pair the spec requires

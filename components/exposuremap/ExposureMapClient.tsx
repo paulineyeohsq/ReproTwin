@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { SourceBadge } from "@/components/ui/SourceBadge";
+import { FreshnessLabel } from "@/components/ui/FreshnessLabel";
 import { LeafletMap } from "@/components/map/LeafletMap";
 import { MAP_CENTER } from "@/lib/constants";
-import type { Hotspot, DataProvenance } from "@/lib/types";
+import type { Hotspot, DataProvenance, EnvironmentalReading } from "@/lib/types";
 
 const LEVEL_COLORS = { Low: "#059669", Moderate: "#d97706", High: "#e11d48" } as const;
 
@@ -18,9 +19,11 @@ function levelForHotspot(h: Hotspot, thresholds: { low: number; high: number }):
 export function ExposureMapClient({
   hotspots,
   provenance,
+  liveReadings,
 }: {
   hotspots: Hotspot[];
   provenance: DataProvenance;
+  liveReadings: Record<string, EnvironmentalReading>;
 }) {
   const [selected, setSelected] = useState<Hotspot | null>(hotspots[0] ?? null);
 
@@ -114,10 +117,21 @@ export function ExposureMapClient({
               </button>
             ))}
             {selected && (
-              <p className="text-xs text-slate-400">
-                Based on nearest available monitoring/modelled data, aggregated across all recorded
-                visits to this location in the loaded dataset. Source: {provenance.environmentSource}.
-              </p>
+              <>
+                <p className="text-xs text-slate-400">
+                  Historical average is based on nearest available monitoring/modelled data,
+                  aggregated across all recorded visits to this location in the loaded dataset.
+                  Source: {provenance.environmentSource}.
+                </p>
+                {liveReadings[selected.id] && (
+                  <div className="rounded-lg border border-slate-200 p-3">
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Right now at this location
+                    </p>
+                    <FreshnessLabel reading={liveReadings[selected.id]} />
+                  </div>
+                )}
+              </>
             )}
           </CardBody>
         </Card>

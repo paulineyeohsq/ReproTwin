@@ -6,6 +6,7 @@ import { SourceBadge } from "@/components/ui/SourceBadge";
 import { FreshnessLabel } from "@/components/ui/FreshnessLabel";
 import { LeafletMap } from "@/components/map/LeafletMap";
 import { MAP_CENTER } from "@/lib/constants";
+import { classifyPm25 } from "@/lib/exposure";
 import type { Hotspot, DataProvenance, EnvironmentalReading } from "@/lib/types";
 
 const LEVEL_COLORS = { Low: "#059669", Moderate: "#d97706", High: "#e11d48" } as const;
@@ -55,18 +56,33 @@ export function ExposureMapClient({
               zoom={11}
               fitToContent
               markers={hotspots.map((h, i) => {
-                const level = levelForHotspot(h, thresholds);
+                const historicalLevel = levelForHotspot(h, thresholds);
+                const live = liveReadings[h.id];
+                // Only flag a marker as "live" when a real source (live or
+                // historical-station) actually resolved — never for the
+                // synthetic fallback, which would misrepresent demo data as
+                // a real-time reading.
+                const isReal = live && live.mode !== "synthetic" && live.pm25 !== null;
+                const displayLevel = isReal ? classifyPm25(live.pm25 as number) : historicalLevel;
+
                 return {
                   id: h.id,
                   lat: h.latitude,
                   lng: h.longitude,
-                  color: LEVEL_COLORS[level],
+                  color: LEVEL_COLORS[displayLevel],
                   radius: 14 + (hotspots.length - i) * 2,
+                  label: isReal ? `${live.pm25}` : undefined,
+                  live: isReal,
                   popup: (
                     <div className="text-xs">
                       <div className="font-semibold">{h.label}</div>
-                      <div>PM2.5: {h.avgPm25} µg/m³ ({level})</div>
+                      <div>Historical avg PM2.5: {h.avgPm25} µg/m³ ({historicalLevel})</div>
                       <div>Visits: {h.visits}</div>
+                      {isReal && (
+                        <div className="mt-1 border-t border-slate-200 pt-1 font-medium text-rose-700">
+                          Right now: {live.pm25} µg/m³ ({displayLevel}) — {live.mode === "live" ? "live" : "historical"} reading
+                        </div>
+                      )}
                     </div>
                   ),
                 };
@@ -84,6 +100,12 @@ export function ExposureMapClient({
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: LEVEL_COLORS.High }} /> High
             </span>
             <span className="text-slate-400">(3-tier prototype scale; marker size = visit frequency)</span>
+            <span className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+              <span className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-600" /> 91
+              </span>
+              = live/historical reading available right now (colour reflects that reading, not the historical average)
+            </span>
           </div>
         </Card>
 
@@ -99,7 +121,14 @@ export function ExposureMapClient({
                   selected?.id === h.id ? "border-[var(--brand)] bg-[var(--brand)]/5" : "border-slate-200 hover:bg-slate-50"
                 }`}
               >
-                <div className="font-semibold text-slate-800">{h.label}</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-semibold text-slate-800">{h.label}</span>
+                  {liveReadings[h.id] && liveReadings[h.id].mode !== "synthetic" && liveReadings[h.id].pm25 !== null && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+                      <span className="h-1.5 w-1.5 rounded-full bg-rose-600" /> {liveReadings[h.id].pm25} now
+                    </span>
+                  )}
+                </div>
                 <dl className="mt-1 grid grid-cols-3 gap-2 text-xs text-slate-500">
                   <div>
                     <dt className="text-slate-400">PM2.5</dt>

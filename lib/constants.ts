@@ -52,6 +52,28 @@ export const DESTINATIONS = [
 
 export const ORIGIN_LABEL = "Petaling Jaya";
 
+// Nationwide destination chips for the Navigate search screen — real,
+// road-reachable Peninsular Malaysian cities across multiple states
+// (verified via a real OSRM route request during development). East
+// Malaysia (Sabah/Sarawak) is deliberately excluded here: there is no road
+// connection across the South China Sea from a Peninsular origin, so OSRM
+// correctly returns no route — that's a real geography fact, not an app
+// limitation. Live/historical environmental data (WAQI) is confirmed
+// working for East Malaysian cities too via direct location search; it's
+// only turn-by-turn road routing that's Peninsular-only from this origin.
+export const POPULAR_DESTINATIONS = [
+  { label: "Kuala Lumpur", lat: 3.139, lng: 101.6869 },
+  { label: "Shah Alam", lat: 3.0733, lng: 101.5185 },
+  { label: "Subang Jaya", lat: 3.0567, lng: 101.5851 },
+  { label: "Seremban", lat: 2.7297, lng: 101.9381 },
+  { label: "Malacca City", lat: 2.1896, lng: 102.2501 },
+  { label: "Johor Bahru", lat: 1.4927, lng: 103.7414 },
+  { label: "Ipoh", lat: 4.5975, lng: 101.0901 },
+  { label: "George Town, Penang", lat: 5.4141, lng: 100.3288 },
+  { label: "Alor Setar", lat: 6.1184, lng: 100.3685 },
+  { label: "Kuantan", lat: 3.8077, lng: 103.326 },
+] as const;
+
 export const MAP_CENTER: [number, number] = [3.0967, 101.6317];
 
 export const MOTORCYCLE_TYPES = [

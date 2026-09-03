@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { BottomSheet, type SheetState } from "@/components/ui/BottomSheet";
 import { LeafletMap } from "@/components/map/LeafletMap";
 import { useImmersive } from "@/components/layout/AppShell";
-import { MAP_CENTER, DESTINATIONS, ORIGIN_LABEL } from "@/lib/constants";
-import { findBaseRouteByDestination } from "@/lib/baseRoutes";
+import { MAP_CENTER, POPULAR_DESTINATIONS, ORIGIN_LABEL } from "@/lib/constants";
 import { classifyPm25 } from "@/lib/exposure";
 import { haversineKm } from "@/lib/geo";
 import { saveTrip, newTripId, getAllTrips, type GpsObservation, type EnvironmentalSnapshot, type RecordedTrip } from "@/lib/tripStore";
@@ -86,13 +85,27 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
   const [searching, setSearching] = useState(false);
   const [geocodeResults, setGeocodeResults] = useState<{ label: string; lat: number; lng: number }[]>([]);
   const [destination, setDestination] = useState<{ label: string; lat: number; lng: number } | null>(null);
-  const [recentDestinations, setRecentDestinations] = useState<string[]>([]);
+  const [recentDestinations, setRecentDestinations] = useState<{ label: string; lat: number; lng: number }[]>([]);
 
+  // Recent destinations can be anywhere the rider has actually searched
+  // and ridden to — not just the 4 hand-authored demo cities — so this
+  // stores each one's real coordinate from its own saved route geometry,
+  // rather than re-deriving it from the (Klang-Valley-only) procedural
+  // fallback route table.
   function refreshRecentDestinations() {
     getAllTrips()
       .then((trips) => {
-        const labels = Array.from(new Set(trips.map((t) => t.destinationLabel))).slice(0, 3);
-        setRecentDestinations(labels);
+        const seen = new Set<string>();
+        const recents: { label: string; lat: number; lng: number }[] = [];
+        for (const t of trips) {
+          if (seen.has(t.destinationLabel) || recents.length >= 3) continue;
+          const points = t.selectedRoute.geometry ?? t.selectedRoute.waypoints;
+          const last = points[points.length - 1];
+          if (!last) continue;
+          seen.add(t.destinationLabel);
+          recents.push({ label: t.destinationLabel, lat: last.lat, lng: last.lng });
+        }
+        setRecentDestinations(recents);
       })
       .catch(() => {});
   }
@@ -451,15 +464,11 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
             <div className="flex flex-wrap gap-2">
               {recentDestinations.map((d) => (
                 <button
-                  key={d}
-                  onClick={() => {
-                    const base = findBaseRouteByDestination(d);
-                    const dest = base.waypoints[base.waypoints.length - 1];
-                    fetchRoutesFor({ label: d, lat: dest.lat, lng: dest.lng });
-                  }}
+                  key={d.label}
+                  onClick={() => fetchRoutesFor(d)}
                   className="min-h-[44px] rounded-full border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
                 >
-                  {d}
+                  {d.label}
                 </button>
               ))}
             </div>
@@ -469,17 +478,13 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Popular destinations</p>
           <div className="flex flex-wrap gap-2">
-            {DESTINATIONS.map((d) => (
+            {POPULAR_DESTINATIONS.map((d) => (
               <button
-                key={d}
-                onClick={() => {
-                  const base = findBaseRouteByDestination(d);
-                  const dest = base.waypoints[base.waypoints.length - 1];
-                  fetchRoutesFor({ label: d, lat: dest.lat, lng: dest.lng });
-                }}
+                key={d.label}
+                onClick={() => fetchRoutesFor(d)}
                 className="min-h-[44px] rounded-full border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
               >
-                {d}
+                {d.label}
               </button>
             ))}
           </div>

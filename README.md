@@ -3,8 +3,11 @@
 A research prototype that behaves like a navigation app (find a
 destination, compare routes, start a ride, get a post-trip report) with an
 added environmental-health layer: routes are compared on **travel time and
-estimated air-pollution exposure**, not just speed. Klang Valley, Malaysia
-is the initial demonstration area.
+estimated air-pollution exposure**, not just speed. The rider's fixed
+origin is Petaling Jaya, Klang Valley, but destination search, routing, and
+environmental data all work nationwide across Malaysia — see "Nationwide
+coverage" below. The demo/synthetic trip-history dataset (Dashboard,
+Exposure Map hotspots, the AI model) is still Klang-Valley-scoped.
 
 It is **not** a clinical product, not a fertility tool, and not a
 commercial navigation product. It does not collect health data as part of
@@ -21,10 +24,35 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000). Try `/navigate`: pick
-a destination (free-text search or one of the 4 Klang Valley demo
-buttons), compare Fastest/Balanced/Low-exposure routes (real OpenStreetMap
-roads via OSRM), start a ride, and (if you grant location permission) your
-actual GPS trajectory is drawn and recorded.
+a destination (free-text search anywhere in Malaysia, or one of the 10
+popular-destination chips spanning multiple Peninsular states), compare
+Fastest/Balanced/Low-exposure routes (real OpenStreetMap roads via OSRM),
+start a ride, and (if you grant location permission) your actual GPS
+trajectory is drawn and recorded.
+
+## Nationwide coverage
+
+- **Routing** — real OSRM road routing works anywhere in Malaysia reachable
+  by road from the fixed Petaling Jaya origin. The 10 "popular destination"
+  chips (`lib/constants.ts`'s `POPULAR_DESTINATIONS`) span Selangor,
+  Negeri Sembilan, Malacca, Johor, Perak, Penang, Kedah and Pahang —
+  verified with a real ~350 km OSRM route request during development
+  (Petaling Jaya → George Town). East Malaysia (Sabah/Sarawak) is
+  deliberately excluded from these chips: there is no road link across the
+  South China Sea from a Peninsular origin, so that's a real geography
+  fact, not an app limitation.
+- **Environmental data (live + historical)** — works for *any* Malaysian
+  coordinate, including East Malaysia, since `lib/liveEnvironment.ts` /
+  `lib/liveOpenAQ.ts` / `lib/livePurpleAir.ts` all query by lat/lng. Verified
+  directly against WAQI for Penang, Johor Bahru, Ipoh, Malacca, Kuantan,
+  Kota Kinabalu, and Kuching during development — all returned real DOE
+  station readings. Search any Malaysian location (Navigate's search bar,
+  or the Exposure Map) to see its real current conditions.
+- **Still Klang-Valley-scoped**: the synthetic 90-day demo trip-history
+  dataset, the Exposure Map's hotspot locations, and the AI exposure model
+  (all in `data/trips.json` etc.) — expanding that stays synthetic/fake
+  data either way, just covering a wider area, and wasn't part of this
+  round of changes.
 
 ## What's real vs. synthetic
 

@@ -1,0 +1,47 @@
+[
+  {
+    "id": "259_8467",
+    "label": "Petaling Jaya (SS2)",
+    "latitude": 3.10633,
+    "longitude": 101.60556,
+    "avgPm25": 21.2,
+    "visits": 470,
+    "avgExposure": 0.8
+  },
+  {
+    "id": "259_8468",
+    "label": "Jalan Templer",
+    "latitude": 3.10986,
+    "longitude": 101.61592,
+    "avgPm25": 22.6,
+    "visits": 417,
+    "avgExposure": 0.86
+  },
+  {
+    "id": "260_8470",
+    "label": "Federal Highway (PJ)",
+    "latitude": 3.11942,
+    "longitude": 101.63942,
+    "avgPm25": 32.9,
+    "visits": 368,
+    "avgExposure": 1.26
+  },
+  {
+    "id": "260_8469",
+    "label": "Jalan Damansara",
+    "latitude": 3.11648,
+    "longitude": 101.6304,
+    "avgPm25": 31.8,
+    "visits": 271,
+    "avgExposure": 1.2
+  },
+  {
+    "id": "260_8471",
+    "label": "Jalan Kerinchi",
+    "latitude": 3.12199,
+    "longitude": 101.65201,
+    "avgPm25": 28.5,
+    "visits": 254,
+    "avgExposure": 1.09
+  }
+]

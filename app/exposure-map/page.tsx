@@ -1,6 +1,7 @@
 import { ExposureMapClient } from "@/components/exposuremap/ExposureMapClient";
 import { getHotspots, getDataProvenance } from "@/lib/dataAccess";
 import { getCurrentEnvironmentalReading } from "@/lib/environmentalDataProvider";
+import { fetchWaqiHistoricalAverage, isLiveEnvironmentConfigured, type WaqiHistoricalAverage } from "@/lib/liveEnvironment";
 import type { EnvironmentalReading } from "@/lib/types";
 
 // See app/page.tsx for why this is needed on a statically-optimized build
@@ -11,14 +12,30 @@ export default async function ExposureMapPage() {
   const hotspots = getHotspots();
   const provenance = getDataProvenance();
 
-  // The hotspot list itself is historical (visit-weighted averages from
-  // recorded trips) — that doesn't change just because a live source is
-  // configured. What CAN be live is "what's the reading at this same spot
-  // right now", so we fetch that separately, per hotspot, and show both.
+  // The hotspot list's own historical average stays visit-weighted from
+  // recorded trips (an exposure statistic tied to when the rider actually
+  // rode there) — that doesn't change just because a live source is
+  // configured. What CAN come from WAQI is a genuine recent-days station
+  // average for that exact spot, shown alongside it, clearly labelled.
   const liveEntries = await Promise.all(
     hotspots.map(async (h) => [h.id, await getCurrentEnvironmentalReading(h.latitude, h.longitude)] as const)
   );
   const liveReadings: Record<string, EnvironmentalReading> = Object.fromEntries(liveEntries);
 
-  return <ExposureMapClient hotspots={hotspots} provenance={provenance} liveReadings={liveReadings} />;
+  let waqiHistoricals: Record<string, WaqiHistoricalAverage> = {};
+  if (isLiveEnvironmentConfigured()) {
+    const entries = await Promise.all(
+      hotspots.map(async (h) => [h.id, await fetchWaqiHistoricalAverage(h.latitude, h.longitude)] as const)
+    );
+    waqiHistoricals = Object.fromEntries(entries.filter((e): e is [string, WaqiHistoricalAverage] => e[1] !== null));
+  }
+
+  return (
+    <ExposureMapClient
+      hotspots={hotspots}
+      provenance={provenance}
+      liveReadings={liveReadings}
+      waqiHistoricals={waqiHistoricals}
+    />
+  );
 }

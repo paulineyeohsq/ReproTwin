@@ -47,14 +47,16 @@ interface WaqiResponse {
     city?: { geo?: [number, number]; name?: string };
     iaqi?: Record<string, { v: number }>;
     time?: { iso?: string };
+    forecast?: { daily?: { pm25?: { avg: number; day: string; max: number; min: number }[] } };
   };
 }
 
-export async function fetchLiveReading(lat: number, lng: number): Promise<EnvironmentalReading | null> {
+// Shared fetch+parse — both fetchLiveReading and fetchWaqiHistoricalAverage
+// hit the same URL, which Next.js's fetch cache/dedup already collapses
+// into one network call per render when both are used on the same page.
+async function fetchWaqiRaw(lat: number, lng: number): Promise<WaqiResponse["data"] | null> {
   const token = process.env.WAQI_TOKEN;
   if (!token) return null;
-
-  const retrievedAt = new Date().toISOString();
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 6000);
@@ -66,32 +68,78 @@ export async function fetchLiveReading(lat: number, lng: number): Promise<Enviro
     });
     clearTimeout(timeout);
     if (!res.ok) return null;
-
     const json: WaqiResponse = await res.json();
     if (json.status !== "ok" || !json.data) return null;
-
-    const iaqi = json.data.iaqi ?? {};
-    if (iaqi.pm25?.v === undefined) return null; // no fabricated fallback
-
-    const stationGeo = json.data.city?.geo;
-    const distanceKm = stationGeo
-      ? Math.round(haversineKm({ lat, lng }, { lat: stationGeo[0], lng: stationGeo[1] }) * 10) / 10
-      : undefined;
-
-    return {
-      pm25: iaqi.pm25.v,
-      pm10: iaqi.pm10?.v ?? null,
-      no2: iaqi.no2?.v ?? null,
-      observedAt: json.data.time?.iso ?? retrievedAt,
-      retrievedAt,
-      source: "DOE/JAS station network via World Air Quality Index (WAQI) aggregator — attribution: aqicn.org",
-      measurement: "measured",
-      mode: "live",
-      stationName: json.data.city?.name,
-      distanceKm,
-      interpolationMethod: "Nearest live-reporting station, no spatial interpolation",
-    };
+    return json.data;
   } catch {
     return null; // network failure/timeout — fall through, never fabricate
   }
+}
+
+export async function fetchLiveReading(lat: number, lng: number): Promise<EnvironmentalReading | null> {
+  const retrievedAt = new Date().toISOString();
+  const data = await fetchWaqiRaw(lat, lng);
+  if (!data) return null;
+
+  const iaqi = data.iaqi ?? {};
+  if (iaqi.pm25?.v === undefined) return null; // no fabricated fallback
+
+  const stationGeo = data.city?.geo;
+  const distanceKm = stationGeo
+    ? Math.round(haversineKm({ lat, lng }, { lat: stationGeo[0], lng: stationGeo[1] }) * 10) / 10
+    : undefined;
+
+  return {
+    pm25: iaqi.pm25.v,
+    pm10: iaqi.pm10?.v ?? null,
+    no2: iaqi.no2?.v ?? null,
+    observedAt: data.time?.iso ?? retrievedAt,
+    retrievedAt,
+    source: "DOE/JAS station network via World Air Quality Index (WAQI) aggregator — attribution: aqicn.org",
+    measurement: "measured",
+    mode: "live",
+    stationName: data.city?.name,
+    distanceKm,
+    interpolationMethod: "Nearest live-reporting station, no spatial interpolation",
+  };
+}
+
+export interface WaqiHistoricalAverage {
+  avgPm25: number;
+  dayCount: number;
+  days: string[]; // YYYY-MM-DD, oldest first
+  stationName?: string;
+  distanceKm?: number;
+  source: string;
+}
+
+// WAQI's forecast.daily.pm25 array blends a few recent PAST days with
+// several FUTURE forecast days in one undifferentiated list (the API gives
+// no per-entry flag distinguishing observed-history from ML forecast). To
+// avoid ever labelling a forecast as "historical", this only averages
+// entries whose date is strictly before today (UTC) — so on a given day it
+// may return very few days (sometimes zero, in which case it returns
+// null rather than fabricating a figure from forecast data).
+export async function fetchWaqiHistoricalAverage(lat: number, lng: number): Promise<WaqiHistoricalAverage | null> {
+  const data = await fetchWaqiRaw(lat, lng);
+  if (!data) return null;
+
+  const dailyPm25 = data.forecast?.daily?.pm25 ?? [];
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const pastDays = dailyPm25.filter((d) => d.day < todayStr).sort((a, b) => a.day.localeCompare(b.day));
+  if (pastDays.length === 0) return null;
+
+  const stationGeo = data.city?.geo;
+  const distanceKm = stationGeo
+    ? Math.round(haversineKm({ lat, lng }, { lat: stationGeo[0], lng: stationGeo[1] }) * 10) / 10
+    : undefined;
+
+  return {
+    avgPm25: Math.round((pastDays.reduce((s, d) => s + d.avg, 0) / pastDays.length) * 10) / 10,
+    dayCount: pastDays.length,
+    days: pastDays.map((d) => d.day),
+    stationName: data.city?.name,
+    distanceKm,
+    source: "DOE/JAS station network via World Air Quality Index (WAQI) aggregator — attribution: aqicn.org",
+  };
 }

@@ -7,6 +7,7 @@ import { FreshnessLabel } from "@/components/ui/FreshnessLabel";
 import { LeafletMap } from "@/components/map/LeafletMap";
 import { MAP_CENTER } from "@/lib/constants";
 import { classifyPm25 } from "@/lib/exposure";
+import type { WaqiHistoricalAverage } from "@/lib/liveEnvironment";
 import type { Hotspot, DataProvenance, EnvironmentalReading } from "@/lib/types";
 
 const LEVEL_COLORS = { Low: "#059669", Moderate: "#d97706", High: "#e11d48" } as const;
@@ -21,10 +22,12 @@ export function ExposureMapClient({
   hotspots,
   provenance,
   liveReadings,
+  waqiHistoricals,
 }: {
   hotspots: Hotspot[];
   provenance: DataProvenance;
   liveReadings: Record<string, EnvironmentalReading>;
+  waqiHistoricals: Record<string, WaqiHistoricalAverage>;
 }) {
   const [selected, setSelected] = useState<Hotspot | null>(hotspots[0] ?? null);
 
@@ -148,9 +151,9 @@ export function ExposureMapClient({
             {selected && (
               <>
                 <p className="text-xs text-slate-400">
-                  Historical average is based on nearest available monitoring/modelled data,
-                  aggregated across all recorded visits to this location in the loaded dataset.
-                  Source: {provenance.environmentSource}.
+                  &quot;PM2.5&quot;/&quot;Avg exposure&quot; above are based on nearest available
+                  monitoring/modelled data, aggregated across all recorded visits to this location in
+                  the loaded dataset (an exposure statistic — Source: {provenance.environmentSource}).
                 </p>
                 {liveReadings[selected.id] && (
                   <div className="rounded-lg border border-slate-200 p-3">
@@ -158,6 +161,39 @@ export function ExposureMapClient({
                       Right now at this location
                     </p>
                     <FreshnessLabel reading={liveReadings[selected.id]} />
+                  </div>
+                )}
+                {waqiHistoricals[selected.id] && (
+                  <div className="rounded-lg border border-slate-200 p-3">
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      WAQI recent-days average (not tied to trip visits)
+                    </p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-base font-semibold text-slate-900">
+                        {waqiHistoricals[selected.id].avgPm25} µg/m³
+                      </span>
+                      <span className="text-xs text-slate-500">PM2.5</span>
+                    </div>
+                    <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-xs text-slate-500">
+                      <dt>Days averaged:</dt>
+                      <dd className="text-slate-700">
+                        {waqiHistoricals[selected.id].dayCount} ({waqiHistoricals[selected.id].days[0]} to{" "}
+                        {waqiHistoricals[selected.id].days[waqiHistoricals[selected.id].days.length - 1]})
+                      </dd>
+                      <dt>Station:</dt>
+                      <dd className="text-slate-700">
+                        {waqiHistoricals[selected.id].stationName}
+                        {waqiHistoricals[selected.id].distanceKm !== undefined &&
+                          ` (${waqiHistoricals[selected.id].distanceKm} km away)`}
+                      </dd>
+                      <dt>Source:</dt>
+                      <dd className="text-slate-700">{waqiHistoricals[selected.id].source}</dd>
+                    </dl>
+                    <p className="mt-1.5 text-[11px] text-slate-400">
+                      WAQI&apos;s own past-days average for this station — a general air-quality
+                      trend, not an average of this rider&apos;s actual visits (that&apos;s the PM2.5
+                      figure above).
+                    </p>
                   </div>
                 )}
               </>

@@ -80,6 +80,53 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
   } | null>(null);
   const watchIdRef = useRef<number | null>(null);
 
+  // --- Home location (a single, non-continuous GPS fix) ---
+  // "Current location" and route origins previously defaulted to a
+  // hardcoded Petaling Jaya label/coordinate whenever a ride hadn't
+  // started yet (watchPosition only begins at Start Ride) — meaning every
+  // route was silently computed from Petaling Jaya regardless of where the
+  // rider actually was. This does a single getCurrentPosition() fix (not
+  // a continuous watch — that still only starts at Start Ride, per the
+  // "don't track before the ride begins" rule) purely to seed a correct
+  // origin and a real "Current location" label.
+  const [homePosition, setHomePosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [homeLabel, setHomeLabel] = useState<string | null>(null);
+  const [homeLocating, setHomeLocating] = useState(false);
+
+  function detectHomeLocation() {
+    if (!("geolocation" in navigator)) return;
+    setHomeLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setHomePosition({ lat, lng });
+        refreshReading(lat, lng);
+        fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`)
+          .then((res) => res.json())
+          .then((data) => setHomeLabel(data.label ?? null))
+          .catch(() => {})
+          .finally(() => setHomeLocating(false));
+      },
+      () => setHomeLocating(false),
+      { enableHighAccuracy: false, maximumAge: 60000, timeout: 8000 }
+    );
+  }
+
+  // Only auto-detect silently if the browser reports permission was
+  // already granted in a previous visit — never fire an unprompted native
+  // permission dialog on page load.
+  useEffect(() => {
+    if (!("permissions" in navigator)) return;
+    navigator.permissions
+      ?.query({ name: "geolocation" as PermissionName })
+      .then((status) => {
+        if (status.state === "granted") detectHomeLocation();
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // --- Destination search ---
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -215,7 +262,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
   }
 
   async function fetchRoutesFor(dest: { label: string; lat: number; lng: number }) {
-    const origin = position ?? { lat: MAP_CENTER[0], lng: MAP_CENTER[1] };
+    const origin = position ?? homePosition ?? { lat: MAP_CENTER[0], lng: MAP_CENTER[1] };
     setRideState("loading_routes");
     setRouteError(null);
     try {
@@ -356,7 +403,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
       id: newTripId(),
       startedAt: rideStartedAt,
       endedAt: rideEndedAt,
-      originLabel: ORIGIN_LABEL,
+      originLabel: homeLabel ?? ORIGIN_LABEL,
       destinationLabel: destination.label,
       selectedProfile,
       selectedRoute,
@@ -393,7 +440,11 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
     refreshRecentDestinations();
   }
 
-  const mapCenter: [number, number] = position ? [position.lat, position.lng] : MAP_CENTER;
+  const mapCenter: [number, number] = position
+    ? [position.lat, position.lng]
+    : homePosition
+    ? [homePosition.lat, homePosition.lng]
+    : MAP_CENTER;
 
   const routePolylines = candidates.map((c) => ({
     id: c.id,
@@ -455,7 +506,24 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
 
         <div className="flex items-center gap-2 text-sm text-slate-600">
           <Locate className="h-4 w-4 text-[var(--brand)]" />
-          Current location: <span className="font-medium text-slate-800">{ORIGIN_LABEL}</span>
+          {homeLabel ? (
+            <>
+              Current location: <span className="font-medium text-slate-800">{homeLabel}</span>
+            </>
+          ) : homeLocating ? (
+            <span className="flex items-center gap-1.5 text-slate-400">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Finding your location…
+            </span>
+          ) : (
+            <>
+              <span>
+                Default: <span className="font-medium text-slate-800">{ORIGIN_LABEL}</span>
+              </span>
+              <button onClick={detectHomeLocation} className="min-h-[44px] px-1 font-medium text-[var(--brand-dark)] underline">
+                Use my location
+              </button>
+            </>
+          )}
         </div>
 
         {recentDestinations.length > 0 && (
@@ -626,7 +694,13 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
         fitToContent={!isNavigating}
         polylines={[...routePolylines, ...trajectoryPolyline]}
         markers={destination ? [{ id: "dest", lat: destination.lat, lng: destination.lng, color: "#0f172a", radius: 10 }] : []}
-        riderPosition={position ? { lat: position.lat, lng: position.lng } : null}
+        riderPosition={
+          position
+            ? { lat: position.lat, lng: position.lng }
+            : homePosition
+            ? { lat: homePosition.lat, lng: homePosition.lng }
+            : null
+        }
       />
 
       {isNavigating && selectedRoute ? (

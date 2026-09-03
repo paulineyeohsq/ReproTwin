@@ -22,7 +22,13 @@ import { mulberry32, hashStringToSeed } from "./rng";
 import { inferRoadType, inferTrafficLevel } from "./roadInference";
 import type { Trip, TripSegment, GPSPoint } from "./types";
 
-export const ENVIRONMENT_SOURCE_LABEL = "OpenDOSM / Malaysia Department of Environment";
+// Labelled precisely per the DOE/JAS + OpenDOSM investigation (see
+// README.md): this pipeline reads a researcher-supplied CSV dropped into
+// data/real/environment/ (DOE's Priority-3 researcher-data-request path).
+// It is NOT the same thing as the auto-fetched OpenDOSM national monthly
+// dataset (see lib/historicalOpenDosm.ts) — that dataset has no station
+// coordinates and cannot feed this spatial-matching pipeline at all.
+export const ENVIRONMENT_SOURCE_LABEL = "DOE/JAS station data (researcher-supplied historical CSV)";
 export const MOBILITY_SOURCE_LABEL = "Real urban mobility trajectory data";
 export const DEMO_SOURCE_LABEL = "Prototype synthetic dataset";
 
@@ -189,6 +195,7 @@ export interface RealDataResult {
 }
 
 let cached: RealDataResult | null = null;
+let cachedStations: Station[] | null = null;
 
 // Reconstructs Trip[] (the app's standard trip shape) from whatever real
 // CSVs are currently present. Cached per server process since the files
@@ -201,6 +208,7 @@ export function computeRealData(): RealDataResult {
   const mobilityResult = loadRealMobilityData();
 
   const { located: stations, unlocatedRecordCount } = resolveStations(envResult.rows);
+  cachedStations = stations;
 
   const mobilityPoints: RawMobilityPoint[] = mobilityResult.rows
     .map((r) => ({
@@ -252,6 +260,9 @@ export function computeRealData(): RealDataResult {
       const rng = mulberry32(hashStringToSeed(`${p.timestamp}-${p.latitude}-${p.longitude}`));
       const weather = sampleWeather(new Date(p.timestamp).getUTCHours(), rng);
       const dose = segmentDose(reading.pm25, durationHours);
+      const distanceToStationKm =
+        Math.round(haversineKm({ lat: p.latitude, lng: p.longitude }, { lat: station!.lat, lng: station!.lng }) * 10) / 10;
+      const matchDeltaHours = Math.round((Math.abs(reading.timestampMs - p.timestampMs) / 3600000) * 100) / 100;
 
       segments.push({
         point,
@@ -267,6 +278,14 @@ export function computeRealData(): RealDataResult {
           wind_speed: weather.wind_speed,
           traffic_level: trafficLevel,
           road_type: roadType,
+          // Never "measured at this exact point" — always a spatial/temporal
+          // nearest-neighbour estimate from a real station reading.
+          measurement: "estimated",
+          source: ENVIRONMENT_SOURCE_LABEL,
+          stationName: station!.location,
+          distanceToStationKm,
+          matchDeltaHours,
+          interpolationMethod: `Nearest station (${distanceToStationKm} km away), nearest-time match (Δ${matchDeltaHours}h, max ${MAX_MATCH_HOURS}h window)`,
         },
         durationHours,
         exposure: Math.round(dose * 100) / 100,
@@ -339,4 +358,40 @@ export function computeRealData(): RealDataResult {
 
 export function clearRealDataCache() {
   cached = null;
+  cachedStations = null;
+}
+
+export interface HistoricalStationReading {
+  pm25: number;
+  pm10: number | null;
+  no2: number | null;
+  observedAt: string;
+  stationName: string;
+  distanceKm: number;
+}
+
+// The most recent real reading available near (lat, lng) — deliberately NOT
+// time-windowed against "now", because a researcher-supplied historical
+// dataset will almost never straddle the current moment. This is used only
+// to answer "what's the latest real observation we have for this area",
+// always labelled as historical/not-live by the caller — never as current.
+export function getLatestHistoricalReading(lat: number, lng: number): HistoricalStationReading | null {
+  if (!cachedStations) computeRealData();
+  const stations = cachedStations ?? [];
+  const station = nearestStation(lat, lng, stations);
+  if (!station) return null;
+
+  for (let i = station.readings.length - 1; i >= 0; i--) {
+    const r = station.readings[i];
+    if (r.pm25 === null) continue;
+    return {
+      pm25: r.pm25,
+      pm10: r.pm10,
+      no2: r.no2,
+      observedAt: r.timestamp,
+      stationName: station.location,
+      distanceKm: Math.round(haversineKm({ lat, lng }, { lat: station.lat, lng: station.lng }) * 10) / 10,
+    };
+  }
+  return null;
 }

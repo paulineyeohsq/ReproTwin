@@ -1,8 +1,12 @@
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { EnvironmentalModeBadge } from "@/components/ui/EnvironmentalModeBadge";
 import { getDataProvenance, getDataQuality, getRealDataSummary } from "@/lib/dataAccess";
 import { getModelMetrics } from "@/lib/aiModel";
 import { getDataModeStatus } from "@/lib/dataMode";
+import { getEnvironmentalMode } from "@/lib/environmentalDataProvider";
+import { isLiveEnvironmentConfigured } from "@/lib/liveEnvironment";
+import { isOpenDosmReachable } from "@/lib/historicalOpenDosm";
 import { CheckCircle2, XCircle, Info } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -23,12 +27,15 @@ function statusRow(label: string, ok: boolean | null, detail: string) {
   );
 }
 
-export default function SystemStatusPage() {
+export default async function SystemStatusPage() {
   const provenance = getDataProvenance();
   const quality = getDataQuality();
   const realSummary = getRealDataSummary();
   const { hasRealEnvironmentData, hasRealMobilityData } = getDataModeStatus();
   const metrics = getModelMetrics();
+  const environmentalMode = getEnvironmentalMode();
+  const liveConfigured = isLiveEnvironmentConfigured();
+  const openDosmReachable = await isOpenDosmReachable();
 
   return (
     <div className="space-y-6">
@@ -50,25 +57,41 @@ export default function SystemStatusPage() {
           }
         />
         <CardBody>
-          {statusRow("Environmental data source", true, provenance.environmentSource)}
           {statusRow("Mobility data source", true, provenance.mobilitySource)}
           {statusRow("Physiological data source", true, provenance.physiologySource)}
           {statusRow("Routing engine", true, "OpenStreetMap road network via OSRM (public demo instance)")}
           {statusRow("Geocoding", true, "OpenStreetMap Nominatim (public instance)")}
-          {statusRow("Live environmental API", false, "Not configured — no live polling; latest loaded observation is shown with a staleness label")}
         </CardBody>
       </Card>
 
       <Card>
-        <CardHeader title="Environmental data" />
+        <CardHeader
+          title="Environmental data modes"
+          subtitle="MODE A (historical) / MODE B (live) / MODE C (synthetic) — see README.md for the DOE/JAS + OpenDOSM investigation this is based on"
+          action={<EnvironmentalModeBadge mode={environmentalMode} />}
+        />
         <CardBody>
-          {statusRow("Real environmental CSVs detected", hasRealEnvironmentData, hasRealEnvironmentData ? "Yes" : "No — using synthetic data")}
-          {statusRow("Environmental records loaded", quality.environmentalLoaded, quality.environmentRecordCount ? `${quality.environmentRecordCount.toLocaleString()} records` : "0")}
+          {statusRow(
+            "MODE B — Live (DOE/JAS via WAQI aggregator)",
+            liveConfigured,
+            liveConfigured ? "WAQI_TOKEN configured" : "Not configured — no official DOE/JAS public developer API was found during investigation; see README.md"
+          )}
+          {statusRow(
+            "MODE A — Historical, station-level (researcher-supplied DOE/JAS CSV)",
+            hasRealEnvironmentData,
+            hasRealEnvironmentData ? `Loaded — ${quality.environmentRecordCount.toLocaleString()} records` : "No CSV loaded — see data/real/environment/README.md"
+          )}
+          {statusRow(
+            "MODE A — Historical, national (OpenDOSM auto-fetch)",
+            openDosmReachable,
+            openDosmReachable ? "Reachable — storage.data.gov.my (CC BY 4.0)" : "Unreachable this session"
+          )}
           {statusRow(
             "Stations with no locatable coordinates",
-            quality.unlocatedStationRecordCount === 0 ? true : false,
+            quality.unlocatedStationRecordCount === 0,
             `${quality.unlocatedStationRecordCount.toLocaleString()} records`
           )}
+          {statusRow("MODE C — Synthetic demonstration data", true, "Always available as the final fallback")}
         </CardBody>
       </Card>
 

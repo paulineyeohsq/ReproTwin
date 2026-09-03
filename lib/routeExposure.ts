@@ -13,7 +13,11 @@ import { inferTrafficLevel, sampleWeather, samplePollutants } from "./environmen
 import { predictExposureRate } from "./aiModel";
 import { segmentDose, classifyPm25 } from "./exposure";
 import { mulberry32, hashStringToSeed } from "./rng";
-import type { RoadType, TrafficLevel, ExposureLevel } from "./types";
+import { getDataModeStatus } from "./dataMode";
+import { getLatestHistoricalReading, ENVIRONMENT_SOURCE_LABEL } from "./realDataEngine";
+import type { RoadType, TrafficLevel, ExposureLevel, MeasurementKind, EnvironmentalMode } from "./types";
+
+const SYNTHETIC_PM25_SOURCE = "Prototype synthetic environmental model";
 
 export interface RouteExposureSegment {
   segmentId: string;
@@ -30,6 +34,10 @@ export interface RouteExposureSegment {
   no2: number;
   exposure: number;
   exposureLevel: ExposureLevel;
+  measurement: MeasurementKind;
+  pm25Source: string;
+  stationName?: string;
+  stationDistanceKm?: number;
 }
 
 export interface RouteExposureResult {
@@ -38,6 +46,7 @@ export interface RouteExposureResult {
   avgPm25: number;
   avgPm10: number;
   avgNo2: number;
+  environmentalMode: EnvironmentalMode;
 }
 
 export function computeRouteExposure(
@@ -48,6 +57,14 @@ export function computeRouteExposure(
 ): RouteExposureResult {
   const rng = mulberry32(hashStringToSeed(routeId));
   const weather = sampleWeather(hour, rng);
+  // Real per-segment station matching is only attempted when a researcher-
+  // supplied historical DOE/JAS CSV is actually loaded (MODE A). Live MODE B
+  // is intentionally NOT queried per-segment here — a route can have dozens
+  // of segments, and hammering the live API for each one on every route
+  // request isn't a "sensible" use of a rate-limited free token; the current
+  // reading shown elsewhere already surfaces live data when configured.
+  const hasHistoricalStations = getDataModeStatus().hasRealEnvironmentData;
+  const environmentalMode: EnvironmentalMode = hasHistoricalStations ? "historical" : "synthetic";
 
   const segments: RouteExposureSegment[] = [];
   let totalExposure = 0;
@@ -66,7 +83,28 @@ export function computeRouteExposure(
 
     const roadType = inferRoadType(speedKmh);
     const trafficLevel = inferTrafficLevel(hour, roadType, rng);
-    const { pm25, pm10, no2 } = samplePollutants(hour, roadType, trafficLevel, weather.wind_speed, rng);
+    const midLat = (a.lat + b.lat) / 2;
+    const midLng = (a.lng + b.lng) / 2;
+
+    let pm25: number, pm10: number, no2: number;
+    let pm25Source = SYNTHETIC_PM25_SOURCE;
+    let stationName: string | undefined;
+    let stationDistanceKm: number | undefined;
+
+    const historical = hasHistoricalStations ? getLatestHistoricalReading(midLat, midLng) : null;
+    if (historical) {
+      pm25 = historical.pm25;
+      pm10 = historical.pm10 ?? Math.round(historical.pm25 * 1.7 * 10) / 10;
+      no2 = historical.no2 ?? 0;
+      pm25Source = ENVIRONMENT_SOURCE_LABEL;
+      stationName = historical.stationName;
+      stationDistanceKm = historical.distanceKm;
+    } else {
+      const sampled = samplePollutants(hour, roadType, trafficLevel, weather.wind_speed, rng);
+      pm25 = sampled.pm25;
+      pm10 = sampled.pm10;
+      no2 = sampled.no2;
+    }
 
     const rate = predictExposureRate({
       pm25,
@@ -102,6 +140,10 @@ export function computeRouteExposure(
       // makes "which part of the journey contributes most" visually
       // meaningful regardless of how long each segment took to traverse.
       exposureLevel: classifyPm25(rate),
+      measurement: "estimated",
+      pm25Source,
+      stationName,
+      stationDistanceKm,
     });
 
     totalExposure += exposure;
@@ -116,6 +158,7 @@ export function computeRouteExposure(
     avgPm25: segments.length ? Math.round((pm25Sum / segments.length) * 10) / 10 : 0,
     avgPm10: segments.length ? Math.round((pm10Sum / segments.length) * 10) / 10 : 0,
     avgNo2: segments.length ? Math.round((no2Sum / segments.length) * 10) / 10 : 0,
+    environmentalMode,
   };
 }
 

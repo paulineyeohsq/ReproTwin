@@ -8,7 +8,7 @@
 // can be dropped in later without touching any caller: every function here
 // is async and returns plain data, exactly as a network-backed store would.
 
-import type { RouteProfile, CandidateRoute } from "./types";
+import type { RouteProfile, CandidateRoute, EnvironmentalMode, MeasurementKind } from "./types";
 
 export interface GpsObservation {
   timestamp: string;
@@ -21,12 +21,18 @@ export interface GpsObservation {
 }
 
 export interface EnvironmentalSnapshot {
-  timestamp: string;
+  timestamp: string; // when the reading was observed at the source
+  retrievedAt?: string; // when this app fetched/computed it
   pm25: number;
   pm10: number | null;
   no2: number | null;
   source: string;
   stale: boolean;
+  mode?: EnvironmentalMode;
+  measurement?: MeasurementKind;
+  stationName?: string;
+  distanceKm?: number;
+  interpolationMethod?: string;
 }
 
 export interface RecordedTrip {

@@ -33,11 +33,75 @@ actual GPS trajectory is drawn and recorded.
 | Road network & routing | **Real** — OpenStreetMap via OSRM's public demo instance (`lib/routingEngine.ts`), no API key. Falls back to a hand-authored demo road network only if OSRM is unreachable. |
 | Geocoding | **Real** — OpenStreetMap Nominatim, no API key (`lib/geocode.ts`). |
 | Device GPS | **Real** — `navigator.geolocation.watchPosition()`, only after "Start Ride"; never fabricated. |
-| Environmental data | **Real when loaded** (Malaysian OpenDOSM/data.gov.my CSVs, see below) or synthetic demo data. Either way, **not live** — no periodic polling, no API key for a live pollution feed; every reading is labelled with its source and "as of" timestamp. |
+| Environmental data | Three explicit modes — see "Environmental data investigation" below. Never mixes a real and a synthetic value without labelling which is which. |
 | Exposure calculation | Modelled estimate (PM2.5 × duration), always — never called a personal/measured exposure. |
 | AI exposure model | Trained on the synthetic dataset only; UI states this explicitly rather than reporting a fabricated real-data accuracy figure. |
 | Physiological data | Always synthetic; not part of the core navigation flow. |
 | Trip storage | Real — browser IndexedDB (`lib/tripStore.ts`), not localStorage. No Supabase project is connected in this environment; the store's interface is deliberately storage-agnostic so a server-backed implementation can replace it later without touching any caller. |
+
+## Environmental data investigation
+
+Before wiring anything up, this project investigated what official Malaysian
+air-quality data is actually, legally, programmatically available. Summary
+(full detail lives as comments in the modules referenced):
+
+**Priority 1 — DOE/JAS (Department of Environment).** DOE operates a
+real, real-time, station-level Air Pollutant Index network (APIMS, ~66
+stations, published hourly, run out of the National Environmental Command
+Centre). However, **no publicly documented, self-service developer API for
+it was found.** `eqms.doe.gov.my` hosts the MyJAS EQMS system for manual/
+direct lookups, not an open API a third-party app can call, and Malaysia's
+official open-data API (`developer.data.gov.my`) does not expose it either.
+Conclusion: DOE/JAS's own real-time feed is **not directly integrable**
+without contacting DOE for API access.
+
+**Priority 2 — OpenDOSM / data.gov.my.** This *is* real, live, and
+genuinely integrated (`lib/historicalOpenDosm.ts` makes an actual network
+call to `storage.data.gov.my/environment/air_pollution.csv`, CC BY 4.0
+licensed, safe for a research prototype). Two hard limitations, verified by
+fetching the dataset directly rather than assumed: it is **national, not
+station-level** (no latitude/longitude column at all) and it updates
+**roughly annually**, not in real time. It is shown only as a national
+historical baseline (System Status), never used for road-segment spatial
+matching — a national monthly average has no spatial resolution to give.
+
+**Priority 3 — DOE research-data application.** The architecture supports
+importing higher-resolution, station-level DOE data that a researcher
+requests directly from DOE (`data/real/environment/*.csv`,
+`lib/realDataAdapter.ts` / `lib/realDataEngine.ts`). This is the only path
+that gives real, geo-located station readings, and it's what actually
+powers spatial nearest-station matching for road-segment exposure and trip
+reconstruction. No such dataset is bundled — the app runs on synthetic data
+until one is dropped in.
+
+**Optional live path.** [World Air Quality Index (WAQI/aqicn.org)](https://aqicn.org/api/)
+is a third-party aggregator that mirrors DOE's own APIMS feed in
+near-real-time — the closest thing to a working live integration found.
+It's wired up (`lib/liveEnvironment.ts`) but **off by default**, requiring
+your own free `WAQI_TOKEN` (see `.env.example`), because its terms
+restrict commercial use, forbid redistributing/caching the raw feed, and
+ask non-personal/organisational users to contact the WAQI team directly —
+treat this as a technical proof of what MODE B looks like, not a licensed
+production integration.
+
+### The three modes
+
+| Mode | Meaning | UI label |
+|---|---|---|
+| **B — Live** | `WAQI_TOKEN` configured and the live fetch for this request succeeded | "Live environmental data" + source + observed/retrieved timestamps |
+| **A — Historical** | A researcher-supplied DOE/JAS station CSV is loaded, OR the OpenDOSM national dataset | "Historical Malaysian environmental data" |
+| **C — Synthetic** | No real source available | "Demonstration data — not live environmental observations" |
+
+`lib/environmentalDataProvider.ts` is the single `EnvironmentalDataProvider`
+abstraction every "current conditions" reading goes through — it always
+returns a fully-provenanced `EnvironmentalReading` (never a bare number):
+observation timestamp, retrieval timestamp, source, station name/distance
+when applicable, and an explicit **measured vs. estimated** flag (a
+nearest-station spatial match is always "estimated", never "measured at
+this exact point"). Every exposure figure in the UI has a "Why this
+exposure?" panel (`components/ui/ExposureProvenance.tsx`) tracing it back
+through this chain — Route → Segment → Station/Model → Reading →
+Timestamp → Exposure contribution.
 
 ## Real data mode vs demo mode
 
@@ -88,17 +152,23 @@ npm run gen:model   # trains the exposure model on trips.json, writes data/model
 ## Project structure
 
 - `lib/routingEngine.ts`, `lib/geocode.ts` — real external routing/geocoding clients (OSRM, Nominatim), each with a documented fallback.
-- `lib/routeExposure.ts`, `lib/roadInference.ts` — turns a real route's geometry+speed into per-segment exposure using the existing environment/AI model.
+- `lib/routeExposure.ts`, `lib/roadInference.ts` — turns a real route's geometry+speed into per-segment exposure using real station data when loaded, else the synthetic environment/AI model.
+- `lib/environmentalDataProvider.ts` — the EnvironmentalDataProvider abstraction (live/historical/synthetic mode resolution + provenanced readings).
+- `lib/liveEnvironment.ts` — optional WAQI/aqicn.org live client (MODE B, off by default).
+- `lib/historicalOpenDosm.ts` — real, live fetch of OpenDOSM's national monthly dataset (MODE A, national).
 - `lib/tripStore.ts` — IndexedDB trip persistence for rides recorded via Navigate.
-- `lib/realDataAdapter.ts` / `lib/realDataEngine.ts` — CSV loading and spatial-temporal matching for real Malaysian datasets.
+- `lib/realDataAdapter.ts` / `lib/realDataEngine.ts` — CSV loading and spatial-temporal matching for a researcher-supplied station-level DOE dataset (MODE A, station-level).
 - `lib/dataAccess.ts` — the single server-only aggregation layer every page reads through, mode-aware (demo vs real) underneath a stable interface.
-- `app/api/routes`, `app/api/geocode` — server-side proxies so the client never calls external APIs directly.
+- `app/api/routes`, `app/api/geocode`, `app/api/environment` — server-side proxies so the client never calls external APIs (or sees `WAQI_TOKEN`) directly.
 - `components/navigate/` — the live navigation UI.
+- `components/ui/EnvironmentalModeBadge.tsx`, `FreshnessLabel.tsx`, `ExposureProvenance.tsx` — the shared mode/freshness/provenance UI used everywhere a pollutant reading or exposure figure is shown.
 - `app/trip-details/[id]` — client-rendered (reads IndexedDB, which only exists in the browser).
 
 ## Scope
 
-No native/Apple/Huawei Health integration, no live government pollution
-API (documented, not fabricated), no turn-by-turn voice navigation, no
-Supabase (pending credentials — see TRL-7 report). Map tiles, OSRM, and
-Nominatim are the only live network dependencies.
+No native/Apple/Huawei Health integration, no direct DOE/JAS live API (none
+was found to exist publicly — see "Environmental data investigation"; the
+optional live path goes through a third-party aggregator instead), no
+turn-by-turn voice navigation, no Supabase (pending credentials — see TRL-7
+report). Map tiles, OSRM, Nominatim, OpenDOSM, and (optionally) WAQI are the
+live network dependencies.

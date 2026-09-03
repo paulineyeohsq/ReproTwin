@@ -5,12 +5,16 @@ import {
   getRecommendationInputs,
   getDataProvenance,
 } from "@/lib/dataAccess";
-import { PROJECT_TAGLINE, RIDER, ORIGIN_LABEL, DESTINATIONS } from "@/lib/constants";
+import { getCurrentEnvironmentalReading } from "@/lib/environmentalDataProvider";
+import { PROJECT_TAGLINE, RIDER, ORIGIN_LABEL, DESTINATIONS, MAP_CENTER } from "@/lib/constants";
 import { formatExposureValue } from "@/lib/format";
+import { classifyPm25 } from "@/lib/exposure";
+import { EnvironmentalModeBadge } from "@/components/ui/EnvironmentalModeBadge";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { StatTile } from "@/components/ui/StatTile";
 import { ExposureBadge } from "@/components/ui/Badge";
 import { SourceBadge } from "@/components/ui/SourceBadge";
+import { FreshnessLabel } from "@/components/ui/FreshnessLabel";
 import { WorkflowStrip } from "@/components/ui/WorkflowStrip";
 import { ExposureTrendChart } from "@/components/charts/ExposureTrendChart";
 import { RecommendationsPanel } from "@/components/dashboard/RecommendationsPanel";
@@ -31,12 +35,13 @@ import {
   Navigation,
 } from "lucide-react";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
   const snapshot = getDashboardSnapshot();
   const daily = getDailyAggregates();
   const physio = getLatestPhysiology();
   const recInputs = getRecommendationInputs();
   const provenance = getDataProvenance();
+  const currentReading = await getCurrentEnvironmentalReading(MAP_CENTER[0], MAP_CENTER[1]);
 
   return (
     <div className="space-y-6">
@@ -64,7 +69,7 @@ export default function DashboardPage() {
       <div>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-800">Current status</h2>
-          <SourceBadge source={provenance.environmentSource} />
+          <EnvironmentalModeBadge mode={currentReading.mode} />
         </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <StatTile
@@ -75,10 +80,10 @@ export default function DashboardPage() {
           />
           <StatTile
             label="Current PM2.5"
-            value={snapshot.currentPm25}
+            value={currentReading.pm25 ?? "—"}
             unit="µg/m³"
             icon={<Wind className="h-4 w-4 text-slate-400" />}
-            hint={<ExposureBadge level={snapshot.currentExposureLevel} />}
+            hint={currentReading.pm25 !== null ? <ExposureBadge level={classifyPm25(currentReading.pm25)} /> : "Unavailable"}
           />
           <StatTile
             label="Today's riding"
@@ -105,6 +110,9 @@ export default function DashboardPage() {
                 : "Cumulative, rolling window"
             }
           />
+        </div>
+        <div className="mt-3 max-w-md">
+          <FreshnessLabel reading={currentReading} />
         </div>
       </div>
 

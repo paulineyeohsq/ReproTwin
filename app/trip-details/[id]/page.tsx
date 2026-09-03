@@ -7,6 +7,8 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { LeafletMap } from "@/components/map/LeafletMap";
 import { MAP_CENTER } from "@/lib/constants";
 import { getTripById, type RecordedTrip } from "@/lib/tripStore";
+import { EnvironmentalModeBadge } from "@/components/ui/EnvironmentalModeBadge";
+import { ExposureProvenance } from "@/components/ui/ExposureProvenance";
 import { cn } from "@/lib/cn";
 import { ArrowLeft } from "lucide-react";
 
@@ -147,17 +149,29 @@ export default function TripDetailsPage() {
 
       <Card>
         <CardHeader title="Environmental conditions" />
-        <CardBody className="space-y-2">
+        <CardBody className="space-y-3">
           {trip.environmentalSnapshots.map((s, i) => (
-            <div key={i} className="rounded-lg bg-slate-50 p-3 text-sm">
+            <div key={i} className="space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-slate-700">{s.pm25} µg/m³ PM2.5</span>
-                <span className="text-xs text-slate-400">{s.source}</span>
+                {s.mode ? <EnvironmentalModeBadge mode={s.mode} /> : <span className="text-xs text-slate-400">{s.source}</span>}
               </div>
-              <p className="mt-1 text-xs text-slate-400">
-                As of {s.timestamp}
-                {s.stale && " — not live, no live environmental API configured"}
+              <p className="text-xs text-slate-400">
+                Observed {new Date(s.timestamp).toLocaleString("en-MY")}
+                {s.retrievedAt && ` · Retrieved ${new Date(s.retrievedAt).toLocaleString("en-MY")}`}
               </p>
+              <ExposureProvenance
+                steps={[
+                  { label: "Route", value: `${trip.originLabel} → ${trip.destinationLabel}` },
+                  { label: "Source", value: s.source },
+                  ...(s.stationName ? [{ label: "Station", value: `${s.stationName}${s.distanceKm !== undefined ? ` (${s.distanceKm} km away)` : ""}` }] : []),
+                  { label: "PM2.5", value: `${s.pm25} µg/m³` },
+                  { label: "Observed at", value: new Date(s.timestamp).toLocaleString("en-MY") },
+                  { label: "Measurement", value: s.measurement === "measured" ? "Measured" : "Estimated from monitoring data" },
+                  ...(s.interpolationMethod ? [{ label: "Method", value: s.interpolationMethod }] : []),
+                  { label: "Exposure contribution", value: `${trip.estimatedExposure} units (full ride)` },
+                ]}
+              />
             </div>
           ))}
         </CardBody>

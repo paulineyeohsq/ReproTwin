@@ -4,14 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { SourceBadge } from "@/components/ui/SourceBadge";
+import { FreshnessLabel } from "@/components/ui/FreshnessLabel";
 import { LeafletMap } from "@/components/map/LeafletMap";
 import { MAP_CENTER, DESTINATIONS, ORIGIN_LABEL } from "@/lib/constants";
 import { findBaseRouteByDestination } from "@/lib/baseRoutes";
 import { classifyPm25 } from "@/lib/exposure";
 import { haversineKm } from "@/lib/geo";
 import { saveTrip, newTripId, type GpsObservation, type EnvironmentalSnapshot, type RecordedTrip } from "@/lib/tripStore";
-import type { CandidateRoute, RouteProfile, DataProvenance } from "@/lib/types";
+import type { CandidateRoute, RouteProfile, EnvironmentalReading } from "@/lib/types";
 import { cn } from "@/lib/cn";
 import {
   Navigation,
@@ -42,15 +42,27 @@ interface RouteFetchResponse {
   latencyMs: number;
 }
 
-export function NavigateClient({
-  currentPm25,
-  currentPm25AsOf,
-  provenance,
-}: {
-  currentPm25: number;
-  currentPm25AsOf: string;
-  provenance: DataProvenance;
-}) {
+export function NavigateClient({ initialReading }: { initialReading: EnvironmentalReading }) {
+  const [reading, setReading] = useState<EnvironmentalReading>(initialReading);
+  const currentPm25 = reading.pm25 ?? 0;
+
+  // Re-resolves the current-conditions reading for a real coordinate (the
+  // rider's actual GPS fix at ride start, when available) via the server
+  // route so the EnvironmentalDataProvider — including a live source, if
+  // WAQI_TOKEN is configured — gets a genuine location, not just the fixed
+  // demo origin used for the page's initial server-rendered reading.
+  async function refreshReading(lat: number, lng: number) {
+    try {
+      const res = await fetch(`/api/environment?lat=${lat}&lng=${lng}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setReading(data.reading);
+    } catch {
+      // Network failure — keep showing the last known reading rather than
+      // fabricating a new one.
+    }
+  }
+
   // --- GPS ---
   const [gpsState, setGpsState] = useState<GpsState>("idle");
   const [position, setPosition] = useState<{
@@ -209,6 +221,7 @@ export function NavigateClient({
     lastCheckDistanceRef.current = 0;
     startLocationTracking();
     setRideState("riding");
+    if (position) refreshReading(position.lat, position.lng);
   }
 
   function pauseRide() {
@@ -297,12 +310,18 @@ export function NavigateClient({
   async function saveAndFinish() {
     if (!selectedRoute || !destination || !rideStartedAt) return;
     const snapshot: EnvironmentalSnapshot = {
-      timestamp: currentPm25AsOf,
+      timestamp: reading.observedAt,
+      retrievedAt: reading.retrievedAt,
       pm25: currentPm25,
-      pm10: null,
-      no2: null,
-      source: provenance.environmentSource,
-      stale: true,
+      pm10: reading.pm10,
+      no2: reading.no2,
+      source: reading.source,
+      stale: reading.mode !== "live",
+      mode: reading.mode,
+      measurement: reading.measurement,
+      stationName: reading.stationName,
+      distanceKm: reading.distanceKm,
+      interpolationMethod: reading.interpolationMethod,
     };
     const trip: RecordedTrip = {
       id: newTripId(),
@@ -468,19 +487,12 @@ export function NavigateClient({
           </Card>
 
           <Card>
-            <CardHeader title="Current environment" action={<SourceBadge source={provenance.environmentSource} />} />
-            <CardBody className="space-y-1">
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-semibold text-slate-900">{currentPm25}</span>
-                <span className="text-sm text-slate-500">µg/m³ PM2.5</span>
-              </div>
+            <CardHeader title="Current environment" />
+            <CardBody className="space-y-2">
               <Badge className={cn(exposureLevel === "High" ? "border-rose-200 bg-rose-50 text-rose-700" : exposureLevel === "Moderate" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700")}>
                 {exposureLevel}
               </Badge>
-              <p className="text-xs text-slate-400">
-                Data updated: as of {currentPm25AsOf} — not live, no live
-                environmental API configured for this deployment.
-              </p>
+              <FreshnessLabel reading={reading} />
             </CardBody>
           </Card>
         </div>

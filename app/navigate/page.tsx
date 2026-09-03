@@ -1,15 +1,9 @@
 import { NavigateClient } from "@/components/navigate/NavigateClient";
-import { getDashboardSnapshot, getDataProvenance } from "@/lib/dataAccess";
+import { getCurrentEnvironmentalReading } from "@/lib/environmentalDataProvider";
+import { MAP_CENTER } from "@/lib/constants";
 
-export default function NavigatePage() {
-  const snapshot = getDashboardSnapshot();
-  const provenance = getDataProvenance();
+export default async function NavigatePage() {
+  const initialReading = await getCurrentEnvironmentalReading(MAP_CENTER[0], MAP_CENTER[1]);
 
-  return (
-    <NavigateClient
-      currentPm25={snapshot.currentPm25}
-      currentPm25AsOf={snapshot.asOfDate}
-      provenance={provenance}
-    />
-  );
+  return <NavigateClient initialReading={initialReading} />;
 }

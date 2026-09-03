@@ -7,6 +7,31 @@ export type RoadType = "residential" | "arterial" | "highway";
 
 export type TrafficLevel = "low" | "moderate" | "heavy";
 
+// MODE A (historical real data) / MODE B (live) / MODE C (synthetic
+// demonstration) — see lib/environmentalDataProvider.ts and README.md for
+// the DOE/JAS + OpenDOSM investigation this trichotomy is based on.
+export type EnvironmentalMode = "live" | "historical" | "synthetic";
+
+export type MeasurementKind = "measured" | "estimated";
+
+// A single, fully-provenanced environmental observation for one point in
+// space and time. Every value the UI displays as "current conditions" must
+// come from this shape, never a bare number, so the source/freshness/
+// measured-vs-estimated distinction can never be silently dropped.
+export interface EnvironmentalReading {
+  pm25: number | null;
+  pm10: number | null;
+  no2: number | null;
+  observedAt: string; // ISO — when the reading was actually taken at the source
+  retrievedAt: string; // ISO — when this app fetched/computed it
+  source: string;
+  measurement: MeasurementKind;
+  mode: EnvironmentalMode;
+  stationName?: string;
+  distanceKm?: number; // distance from the requested point to the source station
+  interpolationMethod: string;
+}
+
 export interface GPSPoint {
   timestamp: string; // ISO 8601
   latitude: number;
@@ -27,6 +52,15 @@ export interface EnvironmentSample {
   wind_speed: number; // km/h
   traffic_level: TrafficLevel;
   road_type: RoadType;
+  // Provenance — present when this sample was matched to a real monitoring
+  // station; omitted for purely synthetic samples (where "distance to a
+  // real station" would be meaningless to display).
+  measurement?: MeasurementKind;
+  source?: string;
+  stationName?: string;
+  distanceToStationKm?: number;
+  matchDeltaHours?: number;
+  interpolationMethod?: string;
 }
 
 export interface HealthRecord {
@@ -108,8 +142,15 @@ export interface CandidateRoute {
     lat: number;
     lng: number;
     exposureLevel: ExposureLevel;
+    measurement: MeasurementKind;
+    pm25Source: string;
+    stationName?: string;
+    distanceKm?: number;
   }[];
   roadNetworkSource: string;
+  // Whether avgPm25/segments came from real DOE/JAS station data
+  // ("historical") or the synthetic environmental model ("synthetic").
+  environmentalMode: EnvironmentalMode;
 }
 
 export interface Hotspot {

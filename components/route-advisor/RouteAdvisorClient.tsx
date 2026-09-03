@@ -5,14 +5,16 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { SourceBadge } from "@/components/ui/SourceBadge";
+import { EnvironmentalModeBadge } from "@/components/ui/EnvironmentalModeBadge";
+import { ExposureProvenance } from "@/components/ui/ExposureProvenance";
 import { LeafletMap } from "@/components/map/LeafletMap";
 import type { MapPolyline } from "@/components/map/LeafletMapInner";
 import { DESTINATIONS, ORIGIN_LABEL, MAP_CENTER } from "@/lib/constants";
-import { scoreRoutes, ADVISOR_HOUR, PREFERENCE_WEIGHTS, type PreferenceKey } from "@/lib/routeAdvisor";
+import { scoreRoutes, ADVISOR_HOUR, PREFERENCE_WEIGHTS, type PreferenceKey } from "@/lib/routeScoring";
 import { getModelMetrics } from "@/lib/aiModel";
 import { cn } from "@/lib/cn";
 import { Sparkles, Clock, Wind, Route as RouteIcon, Info, Map as MapIcon } from "lucide-react";
-import type { RouteProfile, DataProvenance, CandidateRoute } from "@/lib/types";
+import type { RouteProfile, CandidateRoute } from "@/lib/types";
 
 const PROFILE_COLORS: Record<RouteProfile, string> = {
   fastest: "#64748b",
@@ -73,10 +75,8 @@ function segmentPolylines(route: CandidateRoute, weight: number, opacity: number
 }
 
 export function RouteAdvisorClient({
-  provenance,
   candidatesByDestination,
 }: {
-  provenance: DataProvenance;
   candidatesByDestination: Record<string, { routes: CandidateRoute[]; usedRealRoads: boolean }>;
 }) {
   const [destination, setDestination] = useState<(typeof DESTINATIONS)[number]>(
@@ -133,7 +133,10 @@ export function RouteAdvisorClient({
             predicted pollution exposure — not simply the shortest route.
           </p>
         </div>
-        <SourceBadge source={recommended.roadNetworkSource} />
+        <div className="flex flex-col items-end gap-1.5">
+          <SourceBadge source={recommended.roadNetworkSource} />
+          <EnvironmentalModeBadge mode={recommended.environmentalMode} />
+        </div>
       </div>
 
       {!usedRealRoads && (
@@ -302,6 +305,25 @@ export function RouteAdvisorClient({
               Modelled estimate — predicted exposure reduction, not a health
               risk reduction estimate.
             </p>
+            <ExposureProvenance
+              steps={[
+                { label: "Route", value: `${ORIGIN_LABEL} → ${destination} (${recommended.label})` },
+                { label: "Road network", value: recommended.roadNetworkSource },
+                {
+                  label: "PM2.5 source",
+                  value:
+                    recommended.environmentalMode === "historical"
+                      ? "DOE/JAS station data (researcher-supplied historical CSV)"
+                      : "Prototype synthetic environmental model",
+                },
+                ...(recommended.segments?.find((s) => s.stationName)
+                  ? [{ label: "Nearest station", value: recommended.segments.find((s) => s.stationName)!.stationName! }]
+                  : []),
+                { label: "Avg PM2.5 across segments", value: `${recommended.avgPm25} µg/m³` },
+                { label: "Measurement", value: "Estimated — nearest-station or simulated per road segment, never a direct on-road sensor" },
+                { label: "Exposure contribution", value: `${recommended.predictedExposure} units (full route)` },
+              ]}
+            />
           </CardBody>
         </Card>
       </div>

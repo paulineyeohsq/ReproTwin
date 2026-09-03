@@ -271,10 +271,14 @@ export function RouteAdvisorClient({
             <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-slate-500">
-                  <Wind className="h-3.5 w-3.5" /> Predicted exposure reduction
+                  <Wind className="h-3.5 w-3.5" /> Predicted exposure vs fastest
                 </span>
-                <span className="font-semibold text-emerald-700">
-                  {exposureDelta > 0 ? `${exposureDelta}% lower` : "Same as fastest"}
+                <span className={cn("font-semibold", exposureDelta > 0 ? "text-emerald-700" : exposureDelta < 0 ? "text-rose-600" : "text-slate-700")}>
+                  {exposureDelta > 0
+                    ? `${exposureDelta}% lower`
+                    : exposureDelta < 0
+                    ? `${Math.abs(exposureDelta)}% higher`
+                    : "Same as fastest"}
                 </span>
               </div>
               <div className="flex items-center justify-between">

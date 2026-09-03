@@ -751,6 +751,10 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
             {candidates.map((c) => {
               const Icon = PROFILE_META[c.profile].icon;
               const isSelected = c.profile === selectedProfile;
+              const isFastest = c.profile === "fastest";
+              // Signed and rounded independently — rounding after the
+              // percentage calc (not before) is what makes "Same" mean
+              // genuinely ~0%, not "anything that wasn't an improvement".
               const pctVsFastest = fastestRoute
                 ? Math.round(((fastestRoute.predictedExposure - c.predictedExposure) / (fastestRoute.predictedExposure || 1)) * 100)
                 : 0;
@@ -774,8 +778,19 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
                     <div className="text-base font-bold text-slate-900">
                       {c.travelTimeMin} min <span className="text-sm font-normal text-slate-400">· {c.distanceKm} km</span>
                     </div>
-                    <div className={cn("text-xs font-medium", pctVsFastest > 0 ? "text-emerald-700" : "text-slate-500")}>
-                      {pctVsFastest > 0 ? `↓ ${pctVsFastest}% estimated exposure` : c.profile === "fastest" ? "Higher estimated exposure" : "Same estimated exposure"}
+                    <div
+                      className={cn(
+                        "text-xs font-medium",
+                        isFastest ? "text-slate-400" : pctVsFastest > 0 ? "text-emerald-700" : pctVsFastest < 0 ? "text-rose-600" : "text-slate-500"
+                      )}
+                    >
+                      {isFastest
+                        ? "Reference route"
+                        : pctVsFastest > 0
+                        ? `↓ ${pctVsFastest}% estimated exposure`
+                        : pctVsFastest < 0
+                        ? `↑ ${Math.abs(pctVsFastest)}% higher estimated exposure`
+                        : "Same estimated exposure"}
                     </div>
                   </div>
                 </button>

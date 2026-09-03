@@ -6,6 +6,8 @@ import { getModelMetrics } from "@/lib/aiModel";
 import { getDataModeStatus } from "@/lib/dataMode";
 import { getEnvironmentalMode } from "@/lib/environmentalDataProvider";
 import { isLiveEnvironmentConfigured } from "@/lib/liveEnvironment";
+import { isPurpleAirConfigured } from "@/lib/livePurpleAir";
+import { isOpenAqConfigured } from "@/lib/liveOpenAQ";
 import { isOpenDosmReachable } from "@/lib/historicalOpenDosm";
 import { CheckCircle2, XCircle, Info } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -34,7 +36,9 @@ export default async function SystemStatusPage() {
   const { hasRealEnvironmentData, hasRealMobilityData } = getDataModeStatus();
   const metrics = getModelMetrics();
   const environmentalMode = getEnvironmentalMode();
-  const liveConfigured = isLiveEnvironmentConfigured();
+  const openAqConfigured = isOpenAqConfigured();
+  const purpleAirConfigured = isPurpleAirConfigured();
+  const waqiConfigured = isLiveEnvironmentConfigured();
   const openDosmReachable = await isOpenDosmReachable();
 
   return (
@@ -72,9 +76,19 @@ export default async function SystemStatusPage() {
         />
         <CardBody>
           {statusRow(
+            "MODE B — Live (OpenAQ aggregator)",
+            openAqConfigured,
+            openAqConfigured ? "OPENAQ_API_KEY configured — tried first" : "Not configured"
+          )}
+          {statusRow(
+            "MODE B — Live (PurpleAir community sensors)",
+            purpleAirConfigured,
+            purpleAirConfigured ? "PURPLEAIR_API_KEY configured — fallback if OpenAQ unavailable" : "Not configured"
+          )}
+          {statusRow(
             "MODE B — Live (DOE/JAS via WAQI aggregator)",
-            liveConfigured,
-            liveConfigured ? "WAQI_TOKEN configured" : "Not configured — no official DOE/JAS public developer API was found during investigation; see README.md"
+            waqiConfigured,
+            waqiConfigured ? "WAQI_TOKEN configured — last live fallback" : "Not configured — no official DOE/JAS public developer API was found during investigation; see README.md"
           )}
           {statusRow(
             "MODE A — Historical, station-level (researcher-supplied DOE/JAS CSV)",

@@ -5,19 +5,28 @@
 //
 // Priority order (see README.md for the DOE/JAS + OpenDOSM investigation
 // this is based on):
-//   MODE B (live)       — only if WAQI_TOKEN is configured AND the live
-//                          fetch actually succeeds for this request.
+//   MODE B (live)       — tries OpenAQ first (OPENAQ_API_KEY — an open,
+//                          attribution-based aggregator that can surface
+//                          reference-grade government stations when a
+//                          provider covers the area), then PurpleAir
+//                          (PURPLEAIR_API_KEY, real consumer-sensor coverage
+//                          in Klang Valley), then WAQI (WAQI_TOKEN, mirrors
+//                          DOE's own station feed) — whichever is
+//                          configured AND actually succeeds for this
+//                          request.
 //   MODE A (historical) — only if a researcher-supplied DOE/JAS station CSV
 //                          is loaded (data/real/environment/*.csv) and a
 //                          station can be resolved for this location.
 //   MODE C (synthetic)  — the always-available demonstration fallback.
-// A higher-tier attempt that fails (no token, network error, no station)
-// silently falls through to the next tier — but getEnvironmentalMode() and
-// every EnvironmentalReading.mode value always reflect which tier actually
-// served the result, so the UI can never show a live/historical badge over
-// a synthetic number.
+// A higher-tier attempt that fails (no key, network error, no nearby
+// sensor/station) silently falls through to the next tier — but
+// getEnvironmentalMode() and every EnvironmentalReading.mode value always
+// reflect which tier actually served the result, so the UI can never show
+// a live/historical badge over a synthetic number.
 
 import { fetchLiveReading, isLiveEnvironmentConfigured } from "./liveEnvironment";
+import { fetchPurpleAirReading, isPurpleAirConfigured } from "./livePurpleAir";
+import { fetchOpenAqReading, isOpenAqConfigured } from "./liveOpenAQ";
 import { getLatestHistoricalReading } from "./realDataEngine";
 import { getDataModeStatus } from "./dataMode";
 import { sampleWeather, samplePollutants, inferTrafficLevel } from "./environment";
@@ -29,7 +38,7 @@ import type { EnvironmentalReading, EnvironmentalMode } from "./types";
 // reported as active if it can actually resolve a reading, not merely
 // because credentials/files are present.
 export function getEnvironmentalMode(): EnvironmentalMode {
-  if (isLiveEnvironmentConfigured()) return "live";
+  if (isOpenAqConfigured() || isPurpleAirConfigured() || isLiveEnvironmentConfigured()) return "live";
   if (getDataModeStatus().hasRealEnvironmentData) return "historical";
   return "synthetic";
 }
@@ -57,6 +66,18 @@ function syntheticReading(atMs: number, seed: string): EnvironmentalReading {
 }
 
 export async function getCurrentEnvironmentalReading(lat: number, lng: number): Promise<EnvironmentalReading> {
+  if (isOpenAqConfigured()) {
+    const openAq = await fetchOpenAqReading(lat, lng);
+    if (openAq) return openAq;
+    // Key configured but no nearby OpenAQ-tracked location, or the request
+    // failed — fall through to PurpleAir, then WAQI, then historical/synthetic.
+  }
+  if (isPurpleAirConfigured()) {
+    const purpleAir = await fetchPurpleAirReading(lat, lng);
+    if (purpleAir) return purpleAir;
+    // Key configured but this request failed (network/no nearby sensor) —
+    // fall through to WAQI, then historical/synthetic.
+  }
   if (isLiveEnvironmentConfigured()) {
     const live = await fetchLiveReading(lat, lng);
     if (live) return live;

@@ -74,21 +74,40 @@ powers spatial nearest-station matching for road-segment exposure and trip
 reconstruction. No such dataset is bundled — the app runs on synthetic data
 until one is dropped in.
 
-**Optional live path.** [World Air Quality Index (WAQI/aqicn.org)](https://aqicn.org/api/)
-is a third-party aggregator that mirrors DOE's own APIMS feed in
-near-real-time — the closest thing to a working live integration found.
-It's wired up (`lib/liveEnvironment.ts`) but **off by default**, requiring
-your own free `WAQI_TOKEN` (see `.env.example`), because its terms
-restrict commercial use, forbid redistributing/caching the raw feed, and
-ask non-personal/organisational users to contact the WAQI team directly —
-treat this as a technical proof of what MODE B looks like, not a licensed
-production integration.
+**Optional live paths.** Three third-party options are wired up, tried in
+this order, all **off by default** and requiring your own key:
+
+1. [OpenAQ](https://explore.openaq.org/register) — a nonprofit that
+   aggregates real ground-level air-quality data (government reference
+   stations and other providers) under an open, attribution-based license
+   (`lib/liveOpenAQ.ts`, `OPENAQ_API_KEY`). Whether it currently tracks any
+   Klang Valley location wasn't confirmed during development (no test key
+   was available) — it falls through cleanly to the next tier if nothing is
+   nearby, and surfaces the actual data provider's name rather than
+   assuming reference-grade accuracy.
+2. [PurpleAir](https://develop.purpleair.com/) — a real crowd-sourced
+   sensor network with genuine coverage in Klang Valley/Kuala Lumpur
+   (`lib/livePurpleAir.ts`, `PURPLEAIR_API_KEY`). Important caveat: these
+   are consumer-grade optical sensors, not government reference monitors —
+   they're well documented to read PM2.5 high in humid conditions unless a
+   correction factor is applied. This integration reports the raw,
+   uncorrected value and labels it as such rather than implying
+   DOE-reference accuracy.
+3. [World Air Quality Index (WAQI/aqicn.org)](https://aqicn.org/api/) — a
+   third-party aggregator that mirrors DOE's own APIMS feed in
+   near-real-time (`lib/liveEnvironment.ts`, `WAQI_TOKEN`). Its terms
+   restrict commercial use, forbid redistributing/caching the raw feed, and
+   ask non-personal/organisational users to contact the WAQI team directly
+   — treat this as a technical proof of what MODE B looks like, not a
+   licensed production integration.
+
+See `.env.example` for all three variables.
 
 ### The three modes
 
 | Mode | Meaning | UI label |
 |---|---|---|
-| **B — Live** | `WAQI_TOKEN` configured and the live fetch for this request succeeded | "Live environmental data" + source + observed/retrieved timestamps |
+| **B — Live** | `OPENAQ_API_KEY`, `PURPLEAIR_API_KEY`, or `WAQI_TOKEN` configured and the live fetch for this request succeeded | "Live environmental data" + source + observed/retrieved timestamps |
 | **A — Historical** | A researcher-supplied DOE/JAS station CSV is loaded, OR the OpenDOSM national dataset | "Historical Malaysian environmental data" |
 | **C — Synthetic** | No real source available | "Demonstration data — not live environmental observations" |
 
@@ -154,7 +173,7 @@ npm run gen:model   # trains the exposure model on trips.json, writes data/model
 - `lib/routingEngine.ts`, `lib/geocode.ts` — real external routing/geocoding clients (OSRM, Nominatim), each with a documented fallback.
 - `lib/routeExposure.ts`, `lib/roadInference.ts` — turns a real route's geometry+speed into per-segment exposure using real station data when loaded, else the synthetic environment/AI model.
 - `lib/environmentalDataProvider.ts` — the EnvironmentalDataProvider abstraction (live/historical/synthetic mode resolution + provenanced readings).
-- `lib/liveEnvironment.ts` — optional WAQI/aqicn.org live client (MODE B, off by default).
+- `lib/liveOpenAQ.ts`, `lib/livePurpleAir.ts`, `lib/liveEnvironment.ts` — optional OpenAQ / PurpleAir / WAQI live clients (MODE B, off by default, tried in that order).
 - `lib/historicalOpenDosm.ts` — real, live fetch of OpenDOSM's national monthly dataset (MODE A, national).
 - `lib/tripStore.ts` — IndexedDB trip persistence for rides recorded via Navigate.
 - `lib/realDataAdapter.ts` / `lib/realDataEngine.ts` — CSV loading and spatial-temporal matching for a researcher-supplied station-level DOE dataset (MODE A, station-level).

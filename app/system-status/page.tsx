@@ -9,6 +9,7 @@ import { isLiveEnvironmentConfigured } from "@/lib/liveEnvironment";
 import { isPurpleAirConfigured } from "@/lib/livePurpleAir";
 import { isOpenAqConfigured } from "@/lib/liveOpenAQ";
 import { isOpenDosmReachable } from "@/lib/historicalOpenDosm";
+import { getCollectionStatus } from "@/lib/historicalCollector";
 import { CheckCircle2, XCircle, Info } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -44,6 +45,7 @@ export default async function SystemStatusPage() {
   const purpleAirConfigured = isPurpleAirConfigured();
   const waqiConfigured = isLiveEnvironmentConfigured();
   const openDosmReachable = await isOpenDosmReachable();
+  const collection = await getCollectionStatus();
 
   return (
     <div className="space-y-6">
@@ -110,6 +112,30 @@ export default async function SystemStatusPage() {
             `${quality.unlocatedStationRecordCount.toLocaleString()} records`
           )}
           {statusRow("MODE C — Synthetic demonstration data", true, "Always available as the final fallback")}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Real historical data collection"
+          subtitle="Accumulating real WAQI snapshots over time (Netlify Blobs), for a future model retrain on real ambient PM2.5 — see the exposure-model explanation in-chat for why this is separate from the exposure-prediction model itself"
+        />
+        <CardBody>
+          {statusRow(
+            "Storage",
+            collection.available,
+            collection.available ? "Netlify Blobs reachable" : "Unavailable in this environment (expected on local `next dev`)"
+          )}
+          {statusRow(
+            "Snapshots collected",
+            collection.snapshotCount > 0 ? true : null,
+            collection.snapshotCount > 0 ? `${collection.snapshotCount.toLocaleString()}` : "0 — none collected yet"
+          )}
+          {collection.firstCollectedAt &&
+            statusRow("First snapshot", true, new Date(collection.firstCollectedAt).toLocaleString("en-MY", { timeZone: "Asia/Kuala_Lumpur" }))}
+          {collection.lastCollectedAt &&
+            statusRow("Most recent snapshot", true, new Date(collection.lastCollectedAt).toLocaleString("en-MY", { timeZone: "Asia/Kuala_Lumpur" }))}
+          {statusRow("Collection schedule", true, "Every 6 hours via GitHub Actions cron (.github/workflows/collect-environment-data.yml)")}
         </CardBody>
       </Card>
 

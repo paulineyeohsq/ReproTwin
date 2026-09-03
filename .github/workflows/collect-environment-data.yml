@@ -1,0 +1,30 @@
+name: Collect environmental snapshot
+
+# Triggers the live site's /api/collect-snapshot endpoint every 6 hours,
+# which fetches every currently-reporting Malaysian DOE/JAS station (via
+# WAQI) and appends the result to Netlify Blobs — see
+# lib/historicalCollector.ts for why this exists (accumulating real data
+# for a future model retrain) and why Blobs rather than a file in this repo.
+# No secrets required unless COLLECT_SECRET is set on the Netlify site, in
+# which case add a matching repo secret of the same name and uncomment the
+# Authorization header below.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger collection
+        run: |
+          status=$(curl -sS -o /tmp/response.json -w "%{http_code}" -X POST \
+            "https://reprotwin.netlify.app/api/collect-snapshot")
+          echo "HTTP status: $status"
+          cat /tmp/response.json
+          if [ "$status" -ge 300 ]; then
+            echo "Collection request failed"
+            exit 1
+          fi

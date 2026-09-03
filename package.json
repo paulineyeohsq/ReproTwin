@@ -11,6 +11,7 @@
     "gen:model": "tsx scripts/train-model.ts"
   },
   "dependencies": {
+    "@netlify/blobs": "^9.1.4",
     "clsx": "^2.1.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.39.0",

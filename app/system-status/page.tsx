@@ -12,6 +12,10 @@ import { isOpenDosmReachable } from "@/lib/historicalOpenDosm";
 import { CheckCircle2, XCircle, Info } from "lucide-react";
 import { cn } from "@/lib/cn";
 
+// See app/page.tsx for why this is needed on a statically-optimized build
+// — this page reports live-mode status, which must not freeze at build time.
+export const revalidate = 300;
+
 function statusRow(label: string, ok: boolean | null, detail: string) {
   return (
     <div className="flex items-center justify-between border-b border-slate-100 py-2 text-sm last:border-0">

@@ -16,6 +16,12 @@ import { ExposureBadge } from "@/components/ui/Badge";
 import { SourceBadge } from "@/components/ui/SourceBadge";
 import { FreshnessLabel } from "@/components/ui/FreshnessLabel";
 import { WorkflowStrip } from "@/components/ui/WorkflowStrip";
+
+// Without this, a statically-optimized build (Netlify/Vercel) would fetch
+// the "current conditions" reading once at build time and freeze it there
+// forever — 5 minutes matches the live-provider fetches' own cache window
+// (see lib/liveEnvironment.ts / lib/livePurpleAir.ts / lib/liveOpenAQ.ts).
+export const revalidate = 300;
 import { ExposureTrendChart } from "@/components/charts/ExposureTrendChart";
 import { RecommendationsPanel } from "@/components/dashboard/RecommendationsPanel";
 import { RiderSummaryCard } from "@/components/dashboard/RiderSummaryCard";

@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 // research/monitoring views (see section 24 of the redesign brief).
 const PRIMARY_NAV_ITEMS = [
   { href: "/navigate", label: "Home" },
+  { href: "/air-quality", label: "Air Quality" },
   { href: "/exposure-map", label: "Exposure Map" },
   { href: "/trip-history", label: "Trip History" },
   { href: "/", label: "Dashboard" },

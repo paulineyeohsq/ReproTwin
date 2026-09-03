@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { SourceBadge } from "@/components/ui/SourceBadge";
 import { FreshnessLabel } from "@/components/ui/FreshnessLabel";
@@ -46,6 +48,12 @@ export function ExposureMapClient({
             Spatial view of estimated air-pollution exposure across recurring locations in the loaded
             dataset, based on the nearest available monitoring/modelled environmental data.
           </p>
+          <Link
+            href="/air-quality"
+            className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-[var(--brand-dark)] underline"
+          >
+            View live Malaysia-wide air quality map <ArrowUpRight className="h-3 w-3" />
+          </Link>
         </div>
         <SourceBadge source={provenance.environmentSource} />
       </div>

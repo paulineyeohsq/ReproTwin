@@ -104,6 +104,61 @@ export async function fetchLiveReading(lat: number, lng: number): Promise<Enviro
   };
 }
 
+export interface MalaysiaStation {
+  name: string;
+  lat: number;
+  lng: number;
+  aqi: number;
+  observedAt: string;
+}
+
+// Roughly covers all of Malaysia (Peninsular + Sabah/Sarawak); the WAQI
+// bounds query also returns nearby stations in Thailand/Singapore/Brunei/
+// Indonesia that happen to fall inside this box, so results are filtered
+// to station names WAQI itself labels "Malaysia".
+const MALAYSIA_BOUNDS = { south: 0.5, west: 98.5, north: 7.8, east: 119.8 };
+
+// One request for every reporting station in the country, rather than a
+// point-by-point query per location — this is what makes a genuine
+// nationwide live map feasible without hammering the API.
+export async function fetchMalaysiaStations(): Promise<MalaysiaStation[]> {
+  const token = process.env.WAQI_TOKEN;
+  if (!token) return [];
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const { south, west, north, east } = MALAYSIA_BOUNDS;
+    const res = await fetch(`https://api.waqi.info/map/bounds/?latlng=${south},${west},${north},${east}&token=${token}`, {
+      signal: controller.signal,
+      next: { revalidate: 300 },
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return [];
+
+    const json = await res.json();
+    if (json.status !== "ok" || !Array.isArray(json.data)) return [];
+
+    const stations: MalaysiaStation[] = [];
+    for (const s of json.data) {
+      const name: string = s.station?.name ?? "";
+      if (!name.includes("Malaysia")) continue; // exclude neighbouring countries in the same bounding box
+      const aqi = Number(s.aqi);
+      if (!Number.isFinite(aqi)) continue; // WAQI returns "-" for stations with no current reading
+      stations.push({
+        name,
+        lat: s.lat,
+        lng: s.lon,
+        aqi,
+        observedAt: s.station?.time ?? new Date().toISOString(),
+      });
+    }
+    return stations;
+  } catch {
+    return []; // network failure/timeout — never fabricate station data
+  }
+}
+
 export interface WaqiHistoricalAverage {
   avgPm25: number;
   dayCount: number;

@@ -5,13 +5,16 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { Activity, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Menu, X } from "lucide-react";
 
+// Desktop-only top nav — on mobile/tablet, BottomNav (Home/Map/Trips/
+// Settings) covers primary navigation instead, per the mobile-first
+// redesign. Dashboard/System Status stay reachable from desktop as the
+// research/monitoring views (see section 24 of the redesign brief).
 const PRIMARY_NAV_ITEMS = [
-  { href: "/", label: "Dashboard" },
-  { href: "/navigate", label: "Navigate" },
+  { href: "/navigate", label: "Home" },
   { href: "/exposure-map", label: "Exposure Map" },
   { href: "/trip-history", label: "Trip History" },
+  { href: "/", label: "Dashboard" },
   { href: "/system-status", label: "System Status" },
 ];
 
@@ -28,7 +31,6 @@ const RESEARCH_NAV_ITEMS = [
 
 export function NavBar() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
   const researchRef = useRef<HTMLDivElement>(null);
 
@@ -46,15 +48,15 @@ export function NavBar() {
   const researchActive = RESEARCH_NAV_ITEMS.some((item) => isActive(item.href));
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--card-border)] bg-white/90 backdrop-blur">
+    <header className="sticky top-0 z-40 hidden border-b border-[var(--card-border)] bg-white/90 backdrop-blur lg:block">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/navigate" className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand)] text-white">
             <Activity className="h-4.5 w-4.5" />
           </span>
           <div className="leading-tight">
             <div className="text-sm font-bold tracking-tight text-slate-900">
-              ReproTwin
+              E-Navigate
             </div>
             <div className="hidden text-[10px] uppercase tracking-wide text-slate-500 sm:block">
               Exposure-Aware Navigation
@@ -62,7 +64,7 @@ export function NavBar() {
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-1 lg:flex">
+        <nav className="flex items-center gap-1">
           {PRIMARY_NAV_ITEMS.map((item) => (
             <Link
               key={item.href}
@@ -111,55 +113,7 @@ export function NavBar() {
             )}
           </div>
         </nav>
-
-        <button
-          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
-          onClick={() => setOpen((o) => !o)}
-          aria-label="Toggle navigation"
-        >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
       </div>
-
-      {open && (
-        <nav className="flex flex-col gap-1 border-t border-[var(--card-border)] bg-white px-4 py-2 lg:hidden">
-          {PRIMARY_NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className={cn(
-                "rounded-lg px-3 py-2 text-sm font-medium",
-                isActive(item.href)
-                  ? "bg-[var(--brand)]/10 text-[var(--brand-dark)]"
-                  : "text-slate-600 hover:bg-slate-100"
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
-          <div className="mt-1 border-t border-[var(--card-border)] pt-1">
-            <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              Research tools
-            </p>
-            {RESEARCH_NAV_ITEMS.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "block rounded-lg px-3 py-2 text-sm font-medium",
-                  isActive(item.href)
-                    ? "bg-[var(--brand)]/10 text-[var(--brand-dark)]"
-                    : "text-slate-600 hover:bg-slate-100"
-                )}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        </nav>
-      )}
     </header>
   );
 }

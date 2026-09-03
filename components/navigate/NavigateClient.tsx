@@ -1,39 +1,45 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Card, CardHeader, CardBody } from "@/components/ui/Card";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { FreshnessLabel } from "@/components/ui/FreshnessLabel";
+import { BottomSheet, type SheetState } from "@/components/ui/BottomSheet";
 import { LeafletMap } from "@/components/map/LeafletMap";
+import { useImmersive } from "@/components/layout/AppShell";
 import { MAP_CENTER, DESTINATIONS, ORIGIN_LABEL } from "@/lib/constants";
 import { findBaseRouteByDestination } from "@/lib/baseRoutes";
 import { classifyPm25 } from "@/lib/exposure";
 import { haversineKm } from "@/lib/geo";
-import { saveTrip, newTripId, type GpsObservation, type EnvironmentalSnapshot, type RecordedTrip } from "@/lib/tripStore";
+import { saveTrip, newTripId, getAllTrips, type GpsObservation, type EnvironmentalSnapshot, type RecordedTrip } from "@/lib/tripStore";
 import type { CandidateRoute, RouteProfile, EnvironmentalReading } from "@/lib/types";
 import { cn } from "@/lib/cn";
 import {
-  Navigation,
   MapPin,
   Search,
-  Play,
-  Pause,
   Square,
   AlertTriangle,
-  Wind,
-  Clock,
-  Gauge,
+  Locate,
   Loader2,
+  Zap,
+  Scale,
+  Leaf,
+  CheckCircle2,
+  Wind,
 } from "lucide-react";
 
 type GpsState = "idle" | "requesting" | "tracking" | "denied" | "unsupported";
-type RideState = "setup" | "comparing" | "loading_routes" | "riding" | "paused" | "summary";
+type RideState = "setup" | "loading_routes" | "comparing" | "permission" | "riding" | "paused" | "summary";
 
 const PROFILE_COLORS: Record<RouteProfile, string> = {
   fastest: "#64748b",
   balanced: "#2563eb",
   low_exposure: "#0e6e63",
+};
+
+const PROFILE_META: Record<RouteProfile, { icon: typeof Zap; label: string }> = {
+  fastest: { icon: Zap, label: "Fastest" },
+  balanced: { icon: Scale, label: "Balanced" },
+  low_exposure: { icon: Leaf, label: "Lower exposure" },
 };
 
 interface RouteFetchResponse {
@@ -42,15 +48,16 @@ interface RouteFetchResponse {
   latencyMs: number;
 }
 
+function AirQualityWord(level: "Low" | "Moderate" | "High") {
+  return level === "Low" ? "Good" : level === "Moderate" ? "Moderate" : "Poor";
+}
+
 export function NavigateClient({ initialReading }: { initialReading: EnvironmentalReading }) {
+  const router = useRouter();
+  const { setImmersive } = useImmersive();
   const [reading, setReading] = useState<EnvironmentalReading>(initialReading);
   const currentPm25 = reading.pm25 ?? 0;
 
-  // Re-resolves the current-conditions reading for a real coordinate (the
-  // rider's actual GPS fix at ride start, when available) via the server
-  // route so the EnvironmentalDataProvider — including a live source, if
-  // WAQI_TOKEN is configured — gets a genuine location, not just the fixed
-  // demo origin used for the page's initial server-rendered reading.
   async function refreshReading(lat: number, lng: number) {
     try {
       const res = await fetch(`/api/environment?lat=${lat}&lng=${lng}`);
@@ -58,8 +65,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
       const data = await res.json();
       setReading(data.reading);
     } catch {
-      // Network failure — keep showing the last known reading rather than
-      // fabricating a new one.
+      // Network failure — keep showing the last known reading.
     }
   }
 
@@ -80,14 +86,36 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
   const [searching, setSearching] = useState(false);
   const [geocodeResults, setGeocodeResults] = useState<{ label: string; lat: number; lng: number }[]>([]);
   const [destination, setDestination] = useState<{ label: string; lat: number; lng: number } | null>(null);
+  const [recentDestinations, setRecentDestinations] = useState<string[]>([]);
+
+  function refreshRecentDestinations() {
+    getAllTrips()
+      .then((trips) => {
+        const labels = Array.from(new Set(trips.map((t) => t.destinationLabel))).slice(0, 3);
+        setRecentDestinations(labels);
+      })
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    refreshRecentDestinations();
+  }, []);
 
   // --- Routes ---
   const [rideState, setRideState] = useState<RideState>("setup");
   const [candidates, setCandidates] = useState<CandidateRoute[]>([]);
-  const [usedRealRoads, setUsedRealRoads] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<RouteProfile>("balanced");
-  const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
+  const [sheetState, setSheetState] = useState<SheetState>("collapsed");
+
+  // Everything past the search screen takes over the full viewport — the
+  // map/navigation experience is meant to feel immersive, with the normal
+  // app chrome (bottom tab bar) reappearing once the user is back to
+  // picking a destination or has finished their ride.
+  useEffect(() => {
+    setImmersive(rideState !== "setup");
+    return () => setImmersive(false);
+  }, [rideState, setImmersive]);
 
   // --- Ride tracking ---
   const [trajectory, setTrajectory] = useState<GpsObservation[]>([]);
@@ -111,7 +139,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy ?? null,
           heading: pos.coords.heading ?? null,
-          speed: pos.coords.speed !== null ? pos.coords.speed * 3.6 : null, // m/s -> km/h
+          speed: pos.coords.speed !== null ? pos.coords.speed * 3.6 : null,
           altitude: pos.coords.altitude ?? null,
         });
       },
@@ -134,10 +162,6 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
     };
   }, []);
 
-  // Force a re-render once a second while riding, so ride duration and
-  // estimated cumulative exposure keep advancing even if no new GPS fix
-  // arrives (e.g. signal loss) — both are computed from Date.now() at
-  // render time, not from GPS updates.
   const [, forceTick] = useState(0);
   useEffect(() => {
     if (rideState !== "riding") return;
@@ -145,7 +169,6 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
     return () => clearInterval(id);
   }, [rideState]);
 
-  // Record a trajectory point whenever a new GPS fix arrives while riding.
   useEffect(() => {
     if (rideState !== "riding" || !position) return;
     setTrajectory((prev) => [
@@ -196,19 +219,26 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
       });
       const data: RouteFetchResponse = await res.json();
       if (!data.routes || data.routes.length === 0) {
-        setRouteError("No route could be generated for this destination.");
+        setRouteError("We couldn't find a route for that destination. Please try again.");
         setRideState("setup");
         return;
       }
       setCandidates(data.routes);
-      setUsedRealRoads(data.usedRealRoads);
-      setLastLatencyMs(data.latencyMs);
       setDestination(dest);
       setSelectedProfile("balanced");
+      setSheetState("expanded");
       setRideState("comparing");
     } catch {
-      setRouteError("Route service request failed. Check your connection and try again.");
+      setRouteError("Connection lost. Please check your network and try again.");
       setRideState("setup");
+    }
+  }
+
+  function requestStartRide() {
+    if (gpsState === "tracking") {
+      startRide();
+    } else {
+      setRideState("permission");
     }
   }
 
@@ -224,14 +254,14 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
     if (position) refreshReading(position.lat, position.lng);
   }
 
-  function pauseRide() {
-    stopLocationTracking();
-    setRideState("paused");
-  }
-
   function resumeRide() {
     startLocationTracking();
     setRideState("riding");
+  }
+
+  function pauseRide() {
+    stopLocationTracking();
+    setRideState("paused");
   }
 
   function stopRide() {
@@ -258,21 +288,14 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
       : 0;
 
   const avgSpeedKmh = elapsedMin > 0 ? observedDistanceKm / (elapsedMin / 60) : 0;
-
-  // Estimated cumulative exposure: current (static, last-loaded) PM2.5 x
-  // elapsed riding time. No live environmental polling — see the "Data
-  // updated" label — so this is a modelled running estimate, not a
-  // sensor-measured one.
   const cumulativeExposure = currentPm25 * (elapsedMin / 60);
   const exposureLevel = classifyPm25(currentPm25);
 
   const selectedRoute = candidates.find((c) => c.profile === selectedProfile);
   const fastestRoute = candidates.find((c) => c.profile === "fastest");
+  const remainingKm = selectedRoute ? Math.max(0, selectedRoute.distanceKm - observedDistanceKm) : 0;
+  const remainingMin = selectedRoute ? Math.max(0, Math.round(selectedRoute.travelTimeMin * (remainingKm / (selectedRoute.distanceKm || 1)))) : 0;
 
-  // Basic "higher exposure ahead" check: every ~500m of progress, look at
-  // whether the low-exposure candidate offered at ride start would now be
-  // meaningfully better than the selected route's own modelled profile.
-  // Based on the pre-computed route model, not a live sensor feed.
   useEffect(() => {
     if (rideState !== "riding" || !selectedRoute) return;
     if (observedDistanceKm - lastCheckDistanceRef.current < 0.5) return;
@@ -285,23 +308,16 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
       lowExposureRoute.predictedExposure < selectedRoute.predictedExposure * 0.85
     ) {
       const reduction = Math.round(
-        ((selectedRoute.predictedExposure - lowExposureRoute.predictedExposure) /
-          selectedRoute.predictedExposure) *
-          100
+        ((selectedRoute.predictedExposure - lowExposureRoute.predictedExposure) / selectedRoute.predictedExposure) * 100
       );
-      const timeDelta = lowExposureRoute.travelTimeMin - selectedRoute.travelTimeMin;
-      setWarning(
-        `Higher pollution ahead (modelled route conditions). Alternative route available: ${
-          timeDelta > 0 ? `+${timeDelta} min` : "similar time"
-        }, ↓${reduction}% estimated exposure.`
-      );
+      setWarning(`${reduction}|${lowExposureRoute.travelTimeMin - selectedRoute.travelTimeMin}`);
     }
   }, [observedDistanceKm, rideState, candidates, selectedRoute]);
 
   function takeAlternative() {
     const lowExposureRoute = candidates.find((c) => c.profile === "low_exposure");
     if (lowExposureRoute) {
-      setSelectedProfile("low_exposure");
+      setSelectedProfile(lowExposureRoute.profile);
       setRouteChanges((n) => n + 1);
     }
     setWarning(null);
@@ -344,8 +360,10 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
       routeChanges,
     };
     await saveTrip(trip);
-    resetAll();
+    setLastSavedTripId(trip.id);
   }
+
+  const [lastSavedTripId, setLastSavedTripId] = useState<string | null>(null);
 
   function resetAll() {
     setRideState("setup");
@@ -357,6 +375,9 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
     setWarning(null);
     setQuery("");
     setGeocodeResults([]);
+    setLastSavedTripId(null);
+    setSheetState("collapsed");
+    refreshRecentDestinations();
   }
 
   const mapCenter: [number, number] = position ? [position.lat, position.lng] : MAP_CENTER;
@@ -371,376 +392,420 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
 
   const trajectoryPolyline =
     trajectory.length > 1
-      ? [
-          {
-            id: "observed",
-            positions: trajectory.map((p) => [p.latitude, p.longitude] as [number, number]),
-            color: "#f59e0b",
-            weight: 5,
-            dashArray: "2 6",
-          },
-        ]
+      ? [{ id: "observed", positions: trajectory.map((p) => [p.latitude, p.longitude] as [number, number]), color: "#f59e0b", weight: 5, dashArray: "2 6" }]
       : [];
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+  // ============================================================
+  // SETUP — the "Home" screen: search-first, no map, no jargon.
+  // ============================================================
+  if (rideState === "setup") {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col gap-6 pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Navigate</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Find routes that balance travel time and estimated air-pollution exposure.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Exposure-Aware Navigation</h1>
+          <p className="mt-1 text-sm text-slate-500">Find the route with the cleanest air, not just the fastest one.</p>
         </div>
-        <Badge
-          className={cn(
-            "border",
-            gpsState === "tracking"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : gpsState === "denied" || gpsState === "unsupported"
-              ? "border-amber-200 bg-amber-50 text-amber-700"
-              : "border-slate-200 bg-slate-50 text-slate-600"
+
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleGeocode()}
+            placeholder="Where are you going?"
+            className="h-14 w-full rounded-2xl border border-slate-300 bg-white pl-12 pr-24 text-base shadow-sm"
+          />
+          <Button
+            size="sm"
+            onClick={handleGeocode}
+            disabled={searching || !query.trim()}
+            className="absolute right-2 top-1/2 -translate-y-1/2"
+          >
+            {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
+          </Button>
+        </div>
+
+        {geocodeResults.length > 0 && (
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            {geocodeResults.map((r) => (
+              <button
+                key={`${r.lat}-${r.lng}`}
+                onClick={() => fetchRoutesFor(r)}
+                className="flex min-h-[52px] w-full items-center gap-3 px-4 py-3 text-left text-[15px] hover:bg-slate-50 active:bg-slate-100"
+              >
+                <MapPin className="h-5 w-5 shrink-0 text-slate-400" />
+                {r.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 text-sm text-slate-600">
+          <Locate className="h-4 w-4 text-[var(--brand)]" />
+          Current location: <span className="font-medium text-slate-800">{ORIGIN_LABEL}</span>
+        </div>
+
+        {recentDestinations.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Recent</p>
+            <div className="flex flex-wrap gap-2">
+              {recentDestinations.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => {
+                    const base = findBaseRouteByDestination(d);
+                    const dest = base.waypoints[base.waypoints.length - 1];
+                    fetchRoutesFor({ label: d, lat: dest.lat, lng: dest.lng });
+                  }}
+                  className="min-h-[44px] rounded-full border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Popular destinations</p>
+          <div className="flex flex-wrap gap-2">
+            {DESTINATIONS.map((d) => (
+              <button
+                key={d}
+                onClick={() => {
+                  const base = findBaseRouteByDestination(d);
+                  const dest = base.waypoints[base.waypoints.length - 1];
+                  fetchRoutesFor({ label: d, lat: dest.lat, lng: dest.lng });
+                }}
+                className="min-h-[44px] rounded-full border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {routeError && (
+          <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{routeError}</p>
+        )}
+      </div>
+    );
+  }
+
+  // ============================================================
+  // LOADING ROUTES — brief, full-screen, no technical detail.
+  // ============================================================
+  if (rideState === "loading_routes") {
+    return (
+      <div className="flex h-dvh flex-col items-center justify-center gap-3 bg-white">
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--brand)]" />
+        <p className="text-sm text-slate-500">Finding your best routes…</p>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // PERMISSION — explain why location is needed before the native
+  // browser prompt fires, per the mobile GPS UX spec.
+  // ============================================================
+  if (rideState === "permission") {
+    return (
+      <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-white px-6 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--brand)]/10">
+          <Locate className="h-8 w-8 text-[var(--brand)]" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900">Use your location</h2>
+        <p className="max-w-xs text-sm text-slate-500">
+          Your location is used to track your journey and provide route recommendations. It&apos;s
+          only collected while you&apos;re riding.
+        </p>
+        <Button size="lg" onClick={startRide} className="mt-2 w-full max-w-xs">
+          Allow location
+        </Button>
+        <button onClick={() => setRideState("comparing")} className="min-h-[44px] px-4 text-sm text-slate-400">
+          Not now
+        </button>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // SUMMARY — post-trip screen.
+  // ============================================================
+  if (rideState === "summary" && selectedRoute && fastestRoute) {
+    const reductionPct = Math.round(
+      ((fastestRoute.predictedExposure - selectedRoute.predictedExposure) / (fastestRoute.predictedExposure || 1)) * 100
+    );
+    return (
+      <div className="mx-auto flex max-h-dvh max-w-lg flex-col items-center gap-5 overflow-y-auto px-2 py-8 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+          <CheckCircle2 className="h-9 w-9 text-emerald-600" />
+        </div>
+        <h1 className="text-2xl font-bold text-slate-900">Trip completed</h1>
+
+        <div className="flex gap-8">
+          <div>
+            <div className="text-3xl font-bold text-slate-900">{elapsedMin.toFixed(0)}</div>
+            <div className="text-xs text-slate-400">minutes</div>
+          </div>
+          <div>
+            <div className="text-3xl font-bold text-slate-900">{observedDistanceKm.toFixed(1)}</div>
+            <div className="text-xs text-slate-400">km</div>
+          </div>
+        </div>
+
+        {reductionPct !== 0 && (
+          <div className="w-full max-w-xs rounded-2xl bg-emerald-50 px-5 py-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Estimated exposure</p>
+            <p className="text-3xl font-bold text-emerald-700">
+              {reductionPct > 0 ? `${reductionPct}% lower` : "Same as fastest"}
+            </p>
+            <p className="text-xs text-emerald-700/80">compared with the fastest route</p>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 text-sm text-slate-600">
+          <Wind className="h-4 w-4 text-slate-400" />
+          Air quality: <span className="font-medium">{AirQualityWord(exposureLevel)}</span>
+        </div>
+
+        <div className="mt-2 flex w-full max-w-xs flex-col gap-2">
+          {lastSavedTripId ? (
+            <Button size="lg" onClick={() => router.push(`/trip-details/${lastSavedTripId}`)}>
+              View trip
+            </Button>
+          ) : (
+            <Button size="lg" onClick={saveAndFinish}>
+              Save trip
+            </Button>
           )}
-        >
-          <Navigation className="h-3 w-3" />
-          GPS: {gpsState === "tracking" ? "Connected" : gpsState === "requesting" ? "Waiting" : gpsState === "denied" ? "Denied" : gpsState === "unsupported" ? "Unsupported" : "Not started"}
-        </Badge>
+          <Button size="lg" variant="ghost" onClick={resetAll}>
+            Done
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // COMPARING / RIDING / PAUSED — full-screen map + bottom sheet.
+  // ============================================================
+  const isNavigating = rideState === "riding" || rideState === "paused";
+
+  return (
+    <div className="relative h-dvh w-full overflow-hidden bg-slate-100">
+      <div className="safe-top absolute inset-x-0 top-0 z-[1000] flex items-center justify-between px-4 py-3">
+        {isNavigating ? (
+          <div className="rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-slate-800 shadow-md">
+            Riding to {destination?.label}
+          </div>
+        ) : (
+          <button
+            onClick={() => {
+              setRideState("setup");
+              setCandidates([]);
+              setSheetState("collapsed");
+            }}
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-white/95 px-4 text-sm font-medium text-slate-700 shadow-md"
+          >
+            ← Back
+          </button>
+        )}
+        <GpsBadge state={gpsState} />
       </div>
 
-      <p className="text-xs text-slate-400">
-        Location tracking is only active after you start a ride and can be stopped at any time. No
-        location is collected before Start Ride.
-      </p>
+      <LeafletMap
+        heightClass="h-full"
+        center={mapCenter}
+        zoom={13}
+        fitToContent={!isNavigating}
+        polylines={[...routePolylines, ...trajectoryPolyline]}
+        markers={destination ? [{ id: "dest", lat: destination.lat, lng: destination.lng, color: "#0f172a", radius: 10 }] : []}
+        riderPosition={position ? { lat: position.lat, lng: position.lng } : null}
+      />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader
-            title="Map"
-            subtitle={
-              rideState === "riding" || rideState === "paused"
-                ? "Observed trajectory (dashed) vs recommended route (solid)"
-                : "Current location and candidate routes"
-            }
-          />
-          <CardBody className="h-[420px] p-0">
-            <LeafletMap
-              center={mapCenter}
-              zoom={13}
-              fitToContent={rideState !== "riding"}
-              polylines={[...routePolylines, ...trajectoryPolyline]}
-              markers={[
-                ...(destination ? [{ id: "dest", lat: destination.lat, lng: destination.lng, color: "#0f172a", radius: 10 }] : []),
-              ]}
-              riderPosition={position ? { lat: position.lat, lng: position.lng } : null}
-            />
-          </CardBody>
-          {(rideState === "riding" || rideState === "paused" || candidates.length > 0) && (
-            <div className="flex flex-wrap gap-3 border-t border-[var(--card-border)] px-5 py-2.5 text-xs text-slate-500">
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-4 rounded-full bg-slate-500" /> Recommended route
-              </span>
-              {trajectory.length > 1 && (
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-4 rounded-full border border-amber-500" style={{ background: "repeating-linear-gradient(90deg,#f59e0b 0 4px,transparent 4px 8px)" }} />
-                  Observed trajectory (actual GPS)
-                </span>
-              )}
-            </div>
-          )}
-        </Card>
-
-        <div className="space-y-4">
-          <Card>
-            <CardHeader title="Current location" />
-            <CardBody className="space-y-2">
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={startLocationTracking} disabled={gpsState === "tracking" || gpsState === "requesting"}>
-                  <Navigation className="h-3.5 w-3.5" /> Enable GPS
-                </Button>
-                {gpsState === "tracking" && rideState === "setup" && (
-                  <Button size="sm" variant="ghost" onClick={stopLocationTracking}>
-                    Stop
+      {isNavigating && selectedRoute ? (
+        <NavigationBottomBar
+          remainingMin={remainingMin}
+          remainingKm={remainingKm}
+          exposureLevel={exposureLevel}
+          currentPm25={currentPm25}
+          warning={warning}
+          onDismissWarning={() => setWarning(null)}
+          onTakeAlternative={takeAlternative}
+          paused={rideState === "paused"}
+          onPauseResume={rideState === "paused" ? resumeRide : pauseRide}
+          onEndRide={stopRide}
+        />
+      ) : (
+        <BottomSheet
+          state={sheetState}
+          onStateChange={setSheetState}
+          peek={
+            selectedRoute && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-lg font-bold text-slate-900">
+                    {selectedRoute.travelTimeMin} min <span className="font-normal text-slate-400">· {selectedRoute.distanceKm} km</span>
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1 text-xs font-medium text-[var(--brand-dark)]">
+                    {(() => {
+                      const Icon = PROFILE_META[selectedRoute.profile].icon;
+                      return <Icon className="h-3.5 w-3.5" />;
+                    })()}
+                    {PROFILE_META[selectedRoute.profile].label}
+                  </div>
+                </div>
+                {sheetState === "collapsed" && (
+                  <Button size="sm" onClick={requestStartRide}>
+                    Start ride
                   </Button>
                 )}
               </div>
-              {position && (
-                <dl className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <dt className="text-slate-400">Lat / Lng</dt>
-                    <dd className="font-mono text-slate-700">
-                      {position.lat.toFixed(5)}, {position.lng.toFixed(5)}
-                    </dd>
+            )
+          }
+        >
+          <div className="space-y-2 pt-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              {candidates.length} route{candidates.length !== 1 ? "s" : ""}
+            </p>
+            {candidates.map((c) => {
+              const Icon = PROFILE_META[c.profile].icon;
+              const isSelected = c.profile === selectedProfile;
+              const pctVsFastest = fastestRoute
+                ? Math.round(((fastestRoute.predictedExposure - c.predictedExposure) / (fastestRoute.predictedExposure || 1)) * 100)
+                : 0;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedProfile(c.profile)}
+                  className={cn(
+                    "flex w-full min-h-[76px] items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-colors",
+                    isSelected ? "border-[var(--brand)] bg-[var(--brand)]/5" : "border-slate-200"
+                  )}
+                >
+                  <span
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white"
+                    style={{ background: PROFILE_COLORS[c.profile] }}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-slate-800">{PROFILE_META[c.profile].label}</div>
+                    <div className="text-base font-bold text-slate-900">
+                      {c.travelTimeMin} min <span className="text-sm font-normal text-slate-400">· {c.distanceKm} km</span>
+                    </div>
+                    <div className={cn("text-xs font-medium", pctVsFastest > 0 ? "text-emerald-700" : "text-slate-500")}>
+                      {pctVsFastest > 0 ? `↓ ${pctVsFastest}% estimated exposure` : c.profile === "fastest" ? "Higher estimated exposure" : "Same estimated exposure"}
+                    </div>
                   </div>
-                  <div>
-                    <dt className="text-slate-400">Accuracy</dt>
-                    <dd className="font-mono text-slate-700">
-                      {position.accuracy ? `${Math.round(position.accuracy)} m` : "—"}
-                    </dd>
-                  </div>
-                </dl>
-              )}
-              {gpsState === "denied" && (
-                <p className="text-xs text-amber-600">
-                  GPS unavailable. Please enable location services and grant permission.
-                </p>
-              )}
-            </CardBody>
-          </Card>
+                </button>
+              );
+            })}
+            <Button size="lg" className="mt-2 w-full" onClick={requestStartRide}>
+              Start ride
+            </Button>
+            <p className="pt-1 text-center text-[11px] text-slate-400">
+              Please interact with the app only when it is safe to do so.
+            </p>
+          </div>
+        </BottomSheet>
+      )}
+    </div>
+  );
+}
 
-          <Card>
-            <CardHeader title="Current environment" />
-            <CardBody className="space-y-2">
-              <Badge className={cn(exposureLevel === "High" ? "border-rose-200 bg-rose-50 text-rose-700" : exposureLevel === "Moderate" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700")}>
-                {exposureLevel}
-              </Badge>
-              <FreshnessLabel reading={reading} />
-            </CardBody>
-          </Card>
+function GpsBadge({ state }: { state: GpsState }) {
+  if (state === "tracking") {
+    return (
+      <div className="flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-md">
+        <span className="h-2 w-2 rounded-full bg-emerald-500" /> GPS active
+      </div>
+    );
+  }
+  if (state === "denied" || state === "unsupported") {
+    return (
+      <div className="flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-rose-700 shadow-md">
+        <span className="h-2 w-2 rounded-full bg-rose-500" /> GPS unavailable
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-amber-700 shadow-md">
+      <span className="h-2 w-2 rounded-full bg-amber-500" /> GPS accuracy low
+    </div>
+  );
+}
+
+function NavigationBottomBar({
+  remainingMin,
+  remainingKm,
+  exposureLevel,
+  currentPm25,
+  warning,
+  onDismissWarning,
+  onTakeAlternative,
+  paused,
+  onPauseResume,
+  onEndRide,
+}: {
+  remainingMin: number;
+  remainingKm: number;
+  exposureLevel: "Low" | "Moderate" | "High";
+  currentPm25: number;
+  warning: string | null;
+  onDismissWarning: () => void;
+  onTakeAlternative: () => void;
+  paused: boolean;
+  onPauseResume: () => void;
+  onEndRide: () => void;
+}) {
+  const [reductionStr, timeDeltaStr] = warning ? warning.split("|") : [null, null];
+
+  return (
+    <div className="safe-bottom fixed inset-x-0 bottom-0 z-[1000] mx-auto w-full max-w-lg space-y-2 px-3 pb-3">
+      {warning && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-lg">
+          <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+            <AlertTriangle className="h-4 w-4" /> Higher pollution ahead
+          </div>
+          <p className="mt-1 text-xs text-amber-800">
+            Alternative route: {Number(timeDeltaStr) > 0 ? `+${timeDeltaStr} min` : "similar time"} · ↓{reductionStr}% estimated
+            exposure
+          </p>
+          <div className="mt-3 flex gap-2">
+            <Button size="sm" variant="outline" className="flex-1 bg-white" onClick={onDismissWarning}>
+              Stay
+            </Button>
+            <Button size="sm" className="flex-1" onClick={onTakeAlternative}>
+              Alternative
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-2xl bg-white p-4 shadow-[0_-4px_24px_rgba(15,23,42,0.15)]">
+        <div className="flex items-baseline justify-between">
+          <div className="text-2xl font-bold text-slate-900">{remainingMin} min</div>
+          <div className="text-lg font-semibold text-slate-500">{remainingKm.toFixed(1)} km</div>
+        </div>
+        <div className="mt-2 flex items-center justify-between text-sm">
+          <span className="flex items-center gap-1.5 text-slate-500">
+            <Wind className="h-4 w-4" /> Air quality
+          </span>
+          <span className="font-medium text-slate-800">
+            {AirQualityWord(exposureLevel)} ({currentPm25} µg/m³)
+          </span>
+        </div>
+        <div className="mt-3 flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={onPauseResume}>
+            {paused ? "Resume" : "Pause"}
+          </Button>
+          <Button variant="danger" className="flex-1" onClick={onEndRide}>
+            <Square className="h-4 w-4" /> End ride
+          </Button>
         </div>
       </div>
-
-      {rideState === "setup" && (
-        <Card>
-          <CardHeader title="Where are you going?" />
-          <CardBody className="space-y-3">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleGeocode()}
-                  placeholder="Search a destination in Malaysia…"
-                  className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm"
-                />
-              </div>
-              <Button size="sm" onClick={handleGeocode} disabled={searching}>
-                {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Search"}
-              </Button>
-            </div>
-
-            {geocodeResults.length > 0 && (
-              <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
-                {geocodeResults.map((r) => (
-                  <button
-                    key={`${r.lat}-${r.lng}`}
-                    onClick={() => fetchRoutesFor(r)}
-                    className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"
-                  >
-                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Or pick a Klang Valley demo destination
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {DESTINATIONS.map((d) => (
-                  <Button
-                    key={d}
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const base = findBaseRouteByDestination(d);
-                      const dest = base.waypoints[base.waypoints.length - 1];
-                      fetchRoutesFor({ label: d, lat: dest.lat, lng: dest.lng });
-                    }}
-                  >
-                    {d}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {routeError && <p className="text-xs text-rose-600">{routeError}</p>}
-          </CardBody>
-        </Card>
-      )}
-
-      {rideState === "loading_routes" && (
-        <Card>
-          <CardBody className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
-            <Loader2 className="h-4 w-4 animate-spin" /> Retrieving real road routes and estimating exposure…
-          </CardBody>
-        </Card>
-      )}
-
-      {rideState === "comparing" && destination && (
-        <Card>
-          <CardHeader
-            title={`${ORIGIN_LABEL} → ${destination.label}`}
-            subtitle={usedRealRoads ? "Real road-following routes via OSRM" : "Demonstration routes (routing service unavailable)"}
-            action={lastLatencyMs !== null && <span className="text-xs text-slate-400">Route latency: {lastLatencyMs}ms</span>}
-          />
-          <CardBody className="space-y-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {candidates.map((c) => {
-                const isSelected = c.profile === selectedProfile;
-                const pctOfFastest = fastestRoute
-                  ? Math.round((c.predictedExposure / fastestRoute.predictedExposure) * 100)
-                  : 100;
-                return (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedProfile(c.profile)}
-                    className={cn(
-                      "rounded-xl border-2 p-4 text-left transition-colors",
-                      isSelected ? "border-[var(--brand)] bg-[var(--brand)]/5" : "border-slate-200 hover:bg-slate-50"
-                    )}
-                  >
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: PROFILE_COLORS[c.profile] }} />
-                      {c.label}
-                    </div>
-                    <div className="mt-2 text-2xl font-bold text-slate-900">{c.travelTimeMin} min</div>
-                    <div className="text-xs text-slate-500">{c.distanceKm} km</div>
-                    <div className="mt-2 text-sm text-slate-600">
-                      Estimated exposure: <span className="font-semibold">{pctOfFastest}%</span>
-                      <span className="text-xs text-slate-400"> of fastest route</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <Button onClick={startRide} disabled={!selectedRoute}>
-              <Play className="h-4 w-4" /> Start Ride
-            </Button>
-          </CardBody>
-        </Card>
-      )}
-
-      {(rideState === "riding" || rideState === "paused") && selectedRoute && (
-        <Card>
-          <CardHeader title="Live navigation" subtitle={`${ORIGIN_LABEL} → ${destination?.label} · ${selectedRoute.label} route`} />
-          <CardBody className="space-y-4">
-            {warning && (
-              <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <div className="flex-1">
-                  <p>{warning}</p>
-                  <div className="mt-2 flex gap-2">
-                    <Button size="sm" onClick={takeAlternative}>
-                      Take alternative
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setWarning(null)}>
-                      Stay on route
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-lg bg-slate-50 p-3 text-center">
-                <div className="flex items-center justify-center gap-1 text-xs text-slate-400">
-                  <Clock className="h-3 w-3" /> Ride duration
-                </div>
-                <div className="text-2xl font-bold text-slate-900">{elapsedMin.toFixed(1)}m</div>
-              </div>
-              <div className="rounded-lg bg-slate-50 p-3 text-center">
-                <div className="flex items-center justify-center gap-1 text-xs text-slate-400">
-                  <Gauge className="h-3 w-3" /> Current speed
-                </div>
-                <div className="text-2xl font-bold text-slate-900">
-                  {position?.speed ? Math.round(position.speed) : "—"}
-                  <span className="text-sm font-normal"> km/h</span>
-                </div>
-              </div>
-              <div className="rounded-lg bg-slate-50 p-3 text-center">
-                <div className="text-xs text-slate-400">Distance travelled</div>
-                <div className="text-2xl font-bold text-slate-900">{observedDistanceKm.toFixed(1)} km</div>
-              </div>
-              <div className="rounded-lg bg-[var(--brand)]/5 p-3 text-center">
-                <div className="flex items-center justify-center gap-1 text-xs text-slate-400">
-                  <Wind className="h-3 w-3" /> Est. cumulative exposure
-                </div>
-                <div className="text-2xl font-bold text-[var(--brand-dark)]">{cumulativeExposure.toFixed(1)}</div>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              {rideState === "riding" ? (
-                <Button variant="outline" onClick={pauseRide}>
-                  <Pause className="h-4 w-4" /> Pause Ride
-                </Button>
-              ) : (
-                <Button variant="outline" onClick={resumeRide}>
-                  <Play className="h-4 w-4" /> Resume Ride
-                </Button>
-              )}
-              <Button variant="danger" onClick={stopRide}>
-                <Square className="h-4 w-4" /> Stop Ride
-              </Button>
-            </div>
-          </CardBody>
-        </Card>
-      )}
-
-      {rideState === "summary" && selectedRoute && fastestRoute && (
-        <Card>
-          <CardHeader title="Trip summary" subtitle={`${ORIGIN_LABEL} → ${destination?.label}`} />
-          <CardBody className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-lg bg-slate-50 p-3 text-center">
-                <div className="text-xs text-slate-400">Distance</div>
-                <div className="text-xl font-bold text-slate-900">{observedDistanceKm.toFixed(1)} km</div>
-              </div>
-              <div className="rounded-lg bg-slate-50 p-3 text-center">
-                <div className="text-xs text-slate-400">Duration</div>
-                <div className="text-xl font-bold text-slate-900">{elapsedMin.toFixed(1)} min</div>
-              </div>
-              <div className="rounded-lg bg-slate-50 p-3 text-center">
-                <div className="text-xs text-slate-400">Avg speed</div>
-                <div className="text-xl font-bold text-slate-900">{avgSpeedKmh.toFixed(1)} km/h</div>
-              </div>
-              <div className="rounded-lg bg-[var(--brand)]/5 p-3 text-center">
-                <div className="text-xs text-slate-400">Est. cumulative exposure</div>
-                <div className="text-xl font-bold text-[var(--brand-dark)]">{cumulativeExposure.toFixed(1)}</div>
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Route comparison</p>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">
-                    <th className="py-1.5 pr-3">Route</th>
-                    <th className="py-1.5 pr-3">Time</th>
-                    <th className="py-1.5 pr-3">Distance</th>
-                    <th className="py-1.5">Estimated exposure</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {candidates.map((c) => (
-                    <tr key={c.id} className={cn("border-b border-slate-100 last:border-0", c.profile === selectedProfile && "bg-slate-50 font-medium")}>
-                      <td className="py-1.5 pr-3">{c.label}{c.profile === selectedProfile && " (selected)"}</td>
-                      <td className="py-1.5 pr-3">{c.travelTimeMin} min</td>
-                      <td className="py-1.5 pr-3">{c.distanceKm} km</td>
-                      <td className="py-1.5">{c.predictedExposure}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="mt-2 text-xs text-slate-500">
-                Exposure reduction vs fastest route:{" "}
-                <span className="font-semibold text-emerald-700">
-                  {Math.round(((fastestRoute.predictedExposure - selectedRoute.predictedExposure) / fastestRoute.predictedExposure) * 100)}%
-                </span>
-              </p>
-            </div>
-
-            <div className="flex gap-2">
-              <Button onClick={saveAndFinish}>Save trip &amp; finish</Button>
-              <Button variant="ghost" onClick={resetAll}>
-                Discard
-              </Button>
-            </div>
-          </CardBody>
-        </Card>
-      )}
     </div>
   );
 }

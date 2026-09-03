@@ -11,7 +11,16 @@ import type { TripSummary } from "@/lib/dataAccess";
 import type { DataProvenance } from "@/lib/types";
 import type { ResolvedStationSummary } from "@/lib/realDataEngine";
 import { MyRidesTab } from "./MyRidesTab";
-import { List, Navigation } from "lucide-react";
+import { List, Navigation, ChevronRight } from "lucide-react";
+
+function formatDateOnly(iso: string) {
+  return new Date(iso).toLocaleDateString("en-MY", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "Asia/Kuala_Lumpur",
+  });
+}
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
@@ -102,7 +111,32 @@ export function TripHistoryClient({
       </p>
 
       {tab === "trips" && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <>
+          {/* Mobile: vertical card list, no table. Desktop/tablet: table + map preview below. */}
+          <div className="space-y-1 overflow-hidden rounded-2xl border border-slate-200 bg-white sm:hidden">
+            {trips.map((t, i) => (
+              <button
+                key={t.id}
+                onClick={() => setSelectedTripId(t.id)}
+                className={cn(
+                  "flex w-full min-h-[68px] items-center gap-3 px-4 py-3 text-left",
+                  i > 0 && "border-t border-slate-100",
+                  selectedTripId === t.id && "bg-slate-50"
+                )}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[15px] font-semibold text-slate-800">{t.routeName}</div>
+                  <div className="text-xs text-slate-500">
+                    {formatDateOnly(t.startTime)} · {t.durationMin} min · {t.distanceKm} km
+                  </div>
+                </div>
+                <ExposureBadge level={t.exposureLevel} />
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" />
+              </button>
+            ))}
+          </div>
+
+          <div className="hidden gap-4 sm:grid sm:grid-cols-1 lg:grid-cols-3">
           <Card className="lg:col-span-2">
             <CardHeader
               title="Last 20 trips"
@@ -218,7 +252,8 @@ export function TripHistoryClient({
               </div>
             )}
           </Card>
-        </div>
+          </div>
+        </>
       )}
 
       {tab === "my-rides" && <MyRidesTab />}

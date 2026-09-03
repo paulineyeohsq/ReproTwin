@@ -2,7 +2,7 @@ import { cn } from "@/lib/cn";
 import type { ButtonHTMLAttributes } from "react";
 
 type Variant = "primary" | "secondary" | "outline" | "ghost" | "danger";
-type Size = "sm" | "md";
+type Size = "sm" | "md" | "lg";
 
 const VARIANT_STYLES: Record<Variant, string> = {
   primary: "bg-[var(--brand)] text-white hover:bg-[var(--brand-dark)]",
@@ -15,6 +15,9 @@ const VARIANT_STYLES: Record<Variant, string> = {
 const SIZE_STYLES: Record<Size, string> = {
   sm: "px-3 py-1.5 text-xs",
   md: "px-4 py-2 text-sm",
+  // Mobile-first primary actions need a real >=44px touch target, not just
+  // a bigger font — used for Start Ride / End Ride / permission CTAs etc.
+  lg: "min-h-[52px] px-5 text-base",
 };
 
 export function Button({

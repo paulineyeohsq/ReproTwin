@@ -1,11 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { NavBar } from "@/components/layout/NavBar";
-import { Footer } from "@/components/layout/Footer";
-import { DemoBanner } from "@/components/ui/DemoBanner";
+import { AppShell } from "@/components/layout/AppShell";
 import { getEffectiveMode, getRealDataSummary } from "@/lib/dataAccess";
-import { PROJECT_TITLE } from "@/lib/constants";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -13,9 +10,31 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: `ReproTwin — ${PROJECT_TITLE}`,
-  description:
-    "AI-powered digital twin for personalised air pollution exposure management among urban motorcycle riders. Research prototype — demo data by default, real Malaysian data optional.",
+  title: "Exposure-Aware Navigation",
+  description: "Get where you're going while avoiding the most polluted routes.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "E-Navigate",
+  },
+  icons: {
+    icon: "/icons/icon-512.png",
+    apple: "/icons/apple-touch-icon.png",
+  },
+};
+
+// viewportFit: "cover" is required for env(safe-area-inset-*) to resolve to
+// anything other than 0 — without it, the notch/home-indicator padding in
+// globals.css is silently inert.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // No maximumScale/userScalable lock: disabling pinch-zoom is an
+  // accessibility anti-pattern (WCAG 1.4.4) — a well-laid-out page
+  // shouldn't need to forbid zooming to look right.
+  viewportFit: "cover",
+  themeColor: "#0e6e63",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -25,12 +44,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
-        <DemoBanner mode={mode} realSummary={realSummary} />
-        <NavBar />
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+        <AppShell mode={mode} realSummary={realSummary}>
           {children}
-        </main>
-        <Footer />
+        </AppShell>
       </body>
     </html>
   );

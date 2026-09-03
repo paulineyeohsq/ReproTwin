@@ -39,3 +39,31 @@ body {
   background: #cbd3dc;
   border-radius: 999px;
 }
+
+/* Safe-area support (iPhone notch/Dynamic Island, Android cutouts, rounded
+   corners). Requires `viewport-fit=cover` in the viewport meta (set via
+   app/layout.tsx's `viewport` export) or these all evaluate to 0. */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+.safe-top {
+  padding-top: var(--safe-top);
+}
+.safe-bottom {
+  padding-bottom: var(--safe-bottom);
+}
+.safe-x {
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Prevent the mobile map/navigation screens from ever causing page-level
+   horizontal scroll regardless of content. */
+html,
+body {
+  overflow-x: hidden;
+}

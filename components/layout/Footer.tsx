@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export function Footer() {
   return (
-    <footer className="mt-auto border-t border-[var(--card-border)] bg-white">
+    <footer className="mt-auto hidden border-t border-[var(--card-border)] bg-white lg:block">
       <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p>
           ReproTwin is a research prototype for urban motorcycle riders. All

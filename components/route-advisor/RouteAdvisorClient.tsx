@@ -394,7 +394,7 @@ export function RouteAdvisorClient({
       <Card>
         <CardHeader
           title="Exposure prediction model"
-          subtitle="Gradient-boosted regression trees trained on the synthetic dataset"
+          subtitle="Gradient-boosted regression trees trained on the synthetic dataset — its PM2.5/PM10/NO2 inputs are real (nearest live station / historical CSV) whenever one is configured, but the model's own training data hasn't changed"
         />
         <CardBody>
           <div className="grid grid-cols-3 gap-3 text-center sm:max-w-md">
@@ -412,14 +412,16 @@ export function RouteAdvisorClient({
             </div>
           </div>
           <p className="mt-3 text-xs font-medium text-amber-700">
-            Model trained using demonstration data; real-world validation
+            Model trained using demonstration data only; real-world validation
             pending.
           </p>
           <p className="mt-1 text-xs text-slate-400">
             Evaluated on a held-out {metrics.nTest.toLocaleString()}-sample
             test split ({metrics.nTrain.toLocaleString()} training samples).
-            Performance shown here reflects synthetic demonstration data and
-            does not represent real-world model performance.
+            These metrics describe the model&apos;s fit to its synthetic
+            training set, not real-world accuracy — see the route&apos;s own
+            &quot;Why this exposure?&quot; panel above for the actual PM2.5
+            source used in this prediction.
           </p>
         </CardBody>
       </Card>

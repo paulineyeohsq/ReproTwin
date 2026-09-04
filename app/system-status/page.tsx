@@ -154,13 +154,18 @@ export default async function SystemStatusPage() {
       </Card>
 
       <Card>
-        <CardHeader title="Exposure prediction model" />
+        <CardHeader
+          title="Exposure prediction model"
+          subtitle="The dose-rate model itself is trained on synthetic data only — that hasn't changed. What HAS changed: its PM2.5/PM10/NO2 inputs are now real (nearest live station, see Environmental data modes above) whenever one is configured, instead of always synthetic. The metrics below describe the model's fit to its synthetic training set, not real-world accuracy — they don't change when the model's real-world inputs do."
+        />
         <CardBody>
-          {statusRow("Model status", true, "Trained on demonstration data; real-world validation pending")}
+          {statusRow("Model status", true, "Trained on demonstration data only; real-world validation pending")}
+          {statusRow("Input data (this request)", environmentalMode !== "synthetic", environmentalMode === "synthetic" ? "Synthetic (no live/historical source configured)" : `Real when available (current mode: ${environmentalMode})`)}
           {statusRow("Held-out MAE", true, `${metrics.mae}`)}
           {statusRow("Held-out RMSE", true, `${metrics.rmse}`)}
           {statusRow("Held-out R²", true, `${metrics.r2}`)}
           {statusRow("Training samples", true, `${metrics.nTrain.toLocaleString()} train / ${metrics.nTest.toLocaleString()} test`)}
+          {statusRow("Trained at", true, new Date(metrics.trainedAt).toLocaleString("en-MY", { timeZone: "Asia/Kuala_Lumpur" }))}
         </CardBody>
       </Card>
 

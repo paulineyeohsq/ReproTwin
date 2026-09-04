@@ -7,7 +7,7 @@ import { mulberry32, hashStringToSeed } from "./rng";
 import { fetchDiverseRoadRoutes, type LatLng, type OsrmRouteResult } from "./routingEngine";
 import { computeRouteExposure } from "./routeExposure";
 import { fetchMalaysiaStations } from "./liveEnvironment";
-import { ADVISOR_HOUR } from "./routeScoring";
+import { ADVISOR_HOUR, PREFERENCE_WEIGHTS } from "./routeScoring";
 
 export { ADVISOR_HOUR, PREFERENCE_WEIGHTS, scoreRoutes, type PreferenceKey } from "./routeScoring";
 
@@ -227,9 +227,32 @@ export async function getCandidateRoutesAsync(
     // three distinct picks would be actively misleading).
     const fastestPick = byTime[0];
     const lowExposurePick = byExposure[0];
-    const balancedPick =
-      scored.find((s) => s !== fastestPick && s !== lowExposurePick) ??
-      byExposure[Math.floor(byExposure.length / 2)];
+
+    // "Balanced" used to be "whichever candidate wasn't already picked",
+    // in array order — verified against real routes that this can produce
+    // a route that's both slower AND more polluted than the other two
+    // picks (a detour that finds neither a real time nor exposure
+    // advantage), which isn't a "balance" of anything. Instead, pick
+    // whichever candidate genuinely minimises the same weighted time/
+    // exposure trade-off PREFERENCE_WEIGHTS.balanced already defines
+    // elsewhere in the app — preferring one of the remaining routes so
+    // three distinct options are still shown when possible, but never
+    // preferring a strictly worse route just to fill that slot.
+    const times = scored.map((s) => s.route.durationMin);
+    const exposures = scored.map((s) => s.exposure.totalExposure);
+    const minTime = Math.min(...times);
+    const maxTime = Math.max(...times);
+    const minExposure = Math.min(...exposures);
+    const maxExposure = Math.max(...exposures);
+    const normalize = (v: number, min: number, max: number) => (max === min ? 0 : (v - min) / (max - min));
+    const balancedWeights = PREFERENCE_WEIGHTS.balanced;
+    const balancedScore = (s: (typeof scored)[number]) =>
+      balancedWeights.time * normalize(s.route.durationMin, minTime, maxTime) +
+      balancedWeights.exposure * normalize(s.exposure.totalExposure, minExposure, maxExposure);
+
+    const remaining = scored.filter((s) => s !== fastestPick && s !== lowExposurePick);
+    const balancedCandidates = remaining.length > 0 ? remaining : scored;
+    const balancedPick = balancedCandidates.reduce((best, s) => (balancedScore(s) < balancedScore(best) ? s : best));
 
     return {
       usedRealRoads: true,

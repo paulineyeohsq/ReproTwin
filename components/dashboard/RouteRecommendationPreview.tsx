@@ -2,12 +2,25 @@ import Link from "next/link";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { getCandidateRoutes, scoreRoutes } from "@/lib/routeAdvisor";
-import { ORIGIN_LABEL } from "@/lib/constants";
+import { getCandidateRoutesAsync, scoreRoutes } from "@/lib/routeAdvisor";
+import { ORIGIN_LABEL, MAP_CENTER } from "@/lib/constants";
 import { Sparkles, ArrowRight } from "lucide-react";
 
-export function RouteRecommendationPreview({ destination }: { destination: string }) {
-  const candidates = getCandidateRoutes(destination);
+// Real road routing (OSRM) + real environmental data (live nationwide
+// stations / historical CSV, whichever is configured) — the same pipeline
+// /navigate and /route-advisor use, via getCandidateRoutesAsync. Falls back
+// to the procedural synthetic demo routes only if OSRM itself is entirely
+// unreachable, same as everywhere else in the app.
+export async function RouteRecommendationPreview({
+  destination,
+}: {
+  destination: { label: string; lat: number; lng: number };
+}) {
+  const { routes: candidates } = await getCandidateRoutesAsync(
+    { lat: MAP_CENTER[0], lng: MAP_CENTER[1] },
+    { lat: destination.lat, lng: destination.lng },
+    destination.label
+  );
   const fastest = candidates.find((c) => c.profile === "fastest")!;
   const recommended = scoreRoutes(candidates, "balanced")[0].route;
   const reductionPct = Math.round(
@@ -19,7 +32,7 @@ export function RouteRecommendationPreview({ destination }: { destination: strin
     <Card>
       <CardHeader
         title="Route recommendation"
-        subtitle={`${ORIGIN_LABEL} → ${destination}`}
+        subtitle={`${ORIGIN_LABEL} → ${destination.label}`}
       />
       <CardBody className="space-y-3">
         {reductionPct > 0 ? (

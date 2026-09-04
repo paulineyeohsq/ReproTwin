@@ -6,7 +6,7 @@ import {
   getDataProvenance,
 } from "@/lib/dataAccess";
 import { getCurrentEnvironmentalReading } from "@/lib/environmentalDataProvider";
-import { PROJECT_TAGLINE, RIDER, ORIGIN_LABEL, DESTINATIONS, MAP_CENTER } from "@/lib/constants";
+import { PROJECT_TAGLINE, RIDER, ORIGIN_LABEL, DESTINATIONS, MAP_CENTER, POPULAR_DESTINATIONS } from "@/lib/constants";
 import { formatExposureValue } from "@/lib/format";
 import { classifyPm25 } from "@/lib/exposure";
 import { EnvironmentalModeBadge } from "@/components/ui/EnvironmentalModeBadge";
@@ -48,6 +48,7 @@ export default async function DashboardPage() {
   const recInputs = getRecommendationInputs();
   const provenance = getDataProvenance();
   const currentReading = await getCurrentEnvironmentalReading(MAP_CENTER[0], MAP_CENTER[1]);
+  const previewDestination = POPULAR_DESTINATIONS.find((d) => d.label === DESTINATIONS[0])!;
 
   return (
     <div className="space-y-6">
@@ -133,7 +134,7 @@ export default async function DashboardPage() {
           </CardBody>
         </Card>
 
-        <RouteRecommendationPreview destination={DESTINATIONS[0]} />
+        <RouteRecommendationPreview destination={previewDestination} />
       </div>
 
       <Card>

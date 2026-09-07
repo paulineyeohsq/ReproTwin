@@ -12,6 +12,11 @@ export type TrafficLevel = "low" | "moderate" | "heavy";
 // the DOE/JAS + OpenDOSM investigation this trichotomy is based on.
 export type EnvironmentalMode = "live" | "historical" | "synthetic";
 
+// Whether a route's traffic_level inputs came from TomTom's live Flow
+// Segment Data (see lib/liveTraffic.ts) or the synthetic hour/road-type
+// model in lib/environment.ts — no historical tier exists for traffic yet.
+export type TrafficMode = "live" | "synthetic";
+
 export type MeasurementKind = "measured" | "estimated";
 
 // A single, fully-provenanced environmental observation for one point in
@@ -146,11 +151,18 @@ export interface CandidateRoute {
     pm25Source: string;
     stationName?: string;
     distanceKm?: number;
+    trafficSource: string;
   }[];
   roadNetworkSource: string;
   // Whether avgPm25/segments came from real DOE/JAS station data
   // ("historical") or the synthetic environmental model ("synthetic").
   environmentalMode: EnvironmentalMode;
+  // Whether traffic_level inputs (and this route's travel time, adjusted
+  // toward real current congestion) came from live TomTom data.
+  trafficMode: TrafficMode;
+  // Average currentSpeed/freeFlowSpeed across this route's live traffic
+  // samples, when trafficMode is "live" — <1 means slower than typical.
+  avgTrafficRatio?: number;
 }
 
 export interface Hotspot {

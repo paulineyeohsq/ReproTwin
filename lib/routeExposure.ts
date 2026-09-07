@@ -18,10 +18,12 @@ import { getLatestHistoricalReading, ENVIRONMENT_SOURCE_LABEL } from "./realData
 import { aqiToPm25 } from "./aqiConversion";
 import { haversineKm } from "./geo";
 import type { MalaysiaStation } from "./liveEnvironment";
-import type { RoadType, TrafficLevel, ExposureLevel, MeasurementKind, EnvironmentalMode } from "./types";
+import { nearestTrafficSample, LIVE_TRAFFIC_SOURCE, type LiveTrafficSample } from "./liveTraffic";
+import type { RoadType, TrafficLevel, ExposureLevel, MeasurementKind, EnvironmentalMode, TrafficMode } from "./types";
 
 const SYNTHETIC_PM25_SOURCE = "Prototype synthetic environmental model";
 const LIVE_STATIONS_SOURCE = "Real-time DOE/JAS stations nationwide via WAQI — nearest station to each road segment";
+const SYNTHETIC_TRAFFIC_SOURCE = "Prototype synthetic traffic model";
 
 // Nearest of the real, currently-reporting nationwide stations to a point
 // — the "average of the area the route passes through" comes for free at
@@ -60,6 +62,7 @@ export interface RouteExposureSegment {
   pm25Source: string;
   stationName?: string;
   stationDistanceKm?: number;
+  trafficSource: string;
 }
 
 export interface RouteExposureResult {
@@ -69,6 +72,7 @@ export interface RouteExposureResult {
   avgPm10: number;
   avgNo2: number;
   environmentalMode: EnvironmentalMode;
+  trafficMode: TrafficMode;
 }
 
 export function computeRouteExposure(
@@ -76,7 +80,8 @@ export function computeRouteExposure(
   route: OsrmRouteResult,
   hour: number,
   dayOfWeek: number,
-  liveStations: MalaysiaStation[] = []
+  liveStations: MalaysiaStation[] = [],
+  trafficSamples: LiveTrafficSample[] = []
 ): RouteExposureResult {
   const rng = mulberry32(hashStringToSeed(routeId));
   const weather = sampleWeather(hour, rng);
@@ -93,6 +98,8 @@ export function computeRouteExposure(
   const hasHistoricalStations = getDataModeStatus().hasRealEnvironmentData;
   const hasLiveStations = liveStations.length > 0;
   const environmentalMode: EnvironmentalMode = hasHistoricalStations ? "historical" : hasLiveStations ? "live" : "synthetic";
+  const hasLiveTraffic = trafficSamples.length > 0;
+  const trafficMode: TrafficMode = hasLiveTraffic ? "live" : "synthetic";
 
   const segments: RouteExposureSegment[] = [];
   let totalExposure = 0;
@@ -110,9 +117,17 @@ export function computeRouteExposure(
     if (durationMin <= 0) continue;
 
     const roadType = inferRoadType(speedKmh);
-    const trafficLevel = inferTrafficLevel(hour, roadType, rng);
     const midLat = (a.lat + b.lat) / 2;
     const midLng = (a.lng + b.lng) / 2;
+
+    // Tier 1 (new): TomTom's real current-vs-free-flow speed, nearest of
+    // this route's own bounded sample set (see lib/liveTraffic.ts — no
+    // bulk endpoint exists, so samples are per-route, not nationwide like
+    // the PM2.5 station list). Tier 2: the synthetic hour/road-type model,
+    // only when no live sample is available for this request.
+    const nearestTraffic = hasLiveTraffic ? nearestTrafficSample(midLat, midLng, trafficSamples) : null;
+    const trafficLevel: TrafficLevel = nearestTraffic ? nearestTraffic.trafficLevel : inferTrafficLevel(hour, roadType, rng);
+    const trafficSource = nearestTraffic ? LIVE_TRAFFIC_SOURCE : SYNTHETIC_TRAFFIC_SOURCE;
 
     let pm25: number, pm10: number, no2: number;
     let pm25Source = SYNTHETIC_PM25_SOURCE;
@@ -181,6 +196,7 @@ export function computeRouteExposure(
       pm25Source,
       stationName,
       stationDistanceKm,
+      trafficSource,
     });
 
     totalExposure += exposure;
@@ -196,6 +212,7 @@ export function computeRouteExposure(
     avgPm10: segments.length ? Math.round((pm10Sum / segments.length) * 10) / 10 : 0,
     avgNo2: segments.length ? Math.round((no2Sum / segments.length) * 10) / 10 : 0,
     environmentalMode,
+    trafficMode,
   };
 }
 

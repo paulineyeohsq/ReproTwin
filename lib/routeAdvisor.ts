@@ -7,6 +7,7 @@ import { mulberry32, hashStringToSeed } from "./rng";
 import { fetchDiverseRoadRoutes, type LatLng, type OsrmRouteResult } from "./routingEngine";
 import { computeRouteExposure } from "./routeExposure";
 import { fetchMalaysiaStations } from "./liveEnvironment";
+import { fetchLiveTrafficForRoute, averageTrafficRatio } from "./liveTraffic";
 import { ADVISOR_HOUR, PREFERENCE_WEIGHTS } from "./routeScoring";
 
 export { ADVISOR_HOUR, PREFERENCE_WEIGHTS, scoreRoutes, type PreferenceKey } from "./routeScoring";
@@ -125,6 +126,7 @@ function buildCandidate(
     avgPm25: Math.round((pm25Sum / points.length) * 10) / 10,
     roadNetworkSource: PROCEDURAL_ROAD_SOURCE,
     environmentalMode: "synthetic",
+    trafficMode: "synthetic",
   };
 }
 
@@ -152,7 +154,8 @@ function osrmRouteToCandidate(
   profile: RouteProfile,
   route: OsrmRouteResult,
   exposure: ReturnType<typeof computeRouteExposure>,
-  routeId: string
+  routeId: string,
+  avgTrafficRatio: number | undefined
 ): CandidateRoute {
   return {
     id: routeId,
@@ -179,9 +182,12 @@ function osrmRouteToCandidate(
       pm25Source: s.pm25Source,
       stationName: s.stationName,
       distanceKm: s.stationDistanceKm,
+      trafficSource: s.trafficSource,
     })),
     roadNetworkSource: OSRM_ROAD_SOURCE,
     environmentalMode: exposure.environmentalMode,
+    trafficMode: exposure.trafficMode,
+    avgTrafficRatio,
   };
 }
 
@@ -212,9 +218,28 @@ export async function getCandidateRoutesAsync(
 
   if (rawRoutes) {
     const idBase = destinationLabel.replace(/\s+/g, "-").toLowerCase();
-    const scored = rawRoutes.map((route, i) => ({
+
+    // Unlike liveStations, traffic samples are fetched per route (TomTom's
+    // Flow Segment Data has no bulk nationwide endpoint) but still bounded
+    // and parallelised — see lib/liveTraffic.ts. fetchLiveTrafficForRoute
+    // itself returns [] with no network call when TOMTOM_API_KEY isn't
+    // configured, so this is always safe to call.
+    const trafficByRoute = await Promise.all(rawRoutes.map((route) => fetchLiveTrafficForRoute(route.coordinates)));
+
+    // OSRM's public "driving" profile has no live congestion awareness at
+    // all — it returns a static, roughly free-flow duration. Where live
+    // traffic samples exist for a route, its travel time (and therefore
+    // its ranking as Fastest/Balanced) is adjusted toward real current
+    // conditions rather than left at that static estimate.
+    const adjustedRoutes = rawRoutes.map((route, i) => {
+      const ratio = averageTrafficRatio(trafficByRoute[i]);
+      return ratio ? { ...route, durationMin: route.durationMin / ratio } : route;
+    });
+
+    const scored = adjustedRoutes.map((route, i) => ({
       route,
-      exposure: computeRouteExposure(`${idBase}-raw${i}`, route, hour, ADVISOR_DAY_OF_WEEK, liveStations),
+      exposure: computeRouteExposure(`${idBase}-raw${i}`, route, hour, ADVISOR_DAY_OF_WEEK, liveStations, trafficByRoute[i]),
+      avgTrafficRatio: averageTrafficRatio(trafficByRoute[i]) ?? undefined,
     }));
 
     const byTime = [...scored].sort((a, b) => a.route.durationMin - b.route.durationMin);
@@ -257,9 +282,9 @@ export async function getCandidateRoutesAsync(
     return {
       usedRealRoads: true,
       routes: [
-        osrmRouteToCandidate(destinationLabel, "fastest", fastestPick.route, fastestPick.exposure, `${idBase}-fastest`),
-        osrmRouteToCandidate(destinationLabel, "balanced", balancedPick.route, balancedPick.exposure, `${idBase}-balanced`),
-        osrmRouteToCandidate(destinationLabel, "low_exposure", lowExposurePick.route, lowExposurePick.exposure, `${idBase}-low-exposure`),
+        osrmRouteToCandidate(destinationLabel, "fastest", fastestPick.route, fastestPick.exposure, `${idBase}-fastest`, fastestPick.avgTrafficRatio),
+        osrmRouteToCandidate(destinationLabel, "balanced", balancedPick.route, balancedPick.exposure, `${idBase}-balanced`, balancedPick.avgTrafficRatio),
+        osrmRouteToCandidate(destinationLabel, "low_exposure", lowExposurePick.route, lowExposurePick.exposure, `${idBase}-low-exposure`, lowExposurePick.avgTrafficRatio),
       ],
     };
   }

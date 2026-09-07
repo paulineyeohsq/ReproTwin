@@ -8,6 +8,7 @@ import { getEnvironmentalMode } from "@/lib/environmentalDataProvider";
 import { isLiveEnvironmentConfigured } from "@/lib/liveEnvironment";
 import { isPurpleAirConfigured } from "@/lib/livePurpleAir";
 import { isOpenAqConfigured } from "@/lib/liveOpenAQ";
+import { isTrafficConfigured } from "@/lib/liveTraffic";
 import { isOpenDosmReachable } from "@/lib/historicalOpenDosm";
 import { getCollectionStatus } from "@/lib/historicalCollector";
 import { CheckCircle2, XCircle, Info } from "lucide-react";
@@ -44,6 +45,7 @@ export default async function SystemStatusPage() {
   const openAqConfigured = isOpenAqConfigured();
   const purpleAirConfigured = isPurpleAirConfigured();
   const waqiConfigured = isLiveEnvironmentConfigured();
+  const trafficConfigured = isTrafficConfigured();
   const openDosmReachable = await isOpenDosmReachable();
   const collection = await getCollectionStatus();
 
@@ -117,6 +119,20 @@ export default async function SystemStatusPage() {
 
       <Card>
         <CardHeader
+          title="Live traffic data"
+          subtitle="Feeds the exposure model's traffic_level input and adjusts each route's travel time toward real current congestion — see lib/liveTraffic.ts"
+        />
+        <CardBody>
+          {statusRow(
+            "Live traffic (TomTom Flow Segment Data)",
+            trafficConfigured,
+            trafficConfigured ? "TOMTOM_API_KEY configured" : "Not configured — routes use the synthetic hour/road-type traffic model"
+          )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
           title="Real historical data collection"
           subtitle="Accumulating real WAQI snapshots over time (Netlify Blobs), for a future model retrain on real ambient PM2.5 — see the exposure-model explanation in-chat for why this is separate from the exposure-prediction model itself"
         />
@@ -156,7 +172,7 @@ export default async function SystemStatusPage() {
       <Card>
         <CardHeader
           title="Exposure prediction model"
-          subtitle="The dose-rate model itself is trained on synthetic data only — that hasn't changed. What HAS changed: its PM2.5/PM10/NO2 inputs are now real (nearest live station, see Environmental data modes above) whenever one is configured, instead of always synthetic. The metrics below describe the model's fit to its synthetic training set, not real-world accuracy — they don't change when the model's real-world inputs do."
+          subtitle="The dose-rate model itself is trained on synthetic data only — that hasn't changed. What HAS changed: its PM2.5/PM10/NO2 inputs (see Environmental data modes above) and traffic_level input (see Live traffic data above) are now real whenever configured, instead of always synthetic. The metrics below describe the model's fit to its synthetic training set, not real-world accuracy — they don't change when the model's real-world inputs do."
         />
         <CardBody>
           {statusRow("Model status", true, "Trained on demonstration data only; real-world validation pending")}

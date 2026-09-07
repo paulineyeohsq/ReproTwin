@@ -34,7 +34,7 @@ export default function TripDetailsPage() {
     return (
       <div className="space-y-3">
         <p className="text-sm text-rose-600">Trip not found in this browser&apos;s local storage.</p>
-        <Link href="/trip-history" className="text-sm text-[var(--brand-dark)] underline">
+        <Link href="/profile?tab=trips" className="text-sm text-[var(--brand-dark)] underline">
           Back to Trip History
         </Link>
       </div>
@@ -51,7 +51,7 @@ export default function TripDetailsPage() {
 
   return (
     <div className="space-y-6">
-      <Link href="/trip-history" className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700">
+      <Link href="/profile?tab=trips" className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700">
         <ArrowLeft className="h-4 w-4" /> Back to Trip History
       </Link>
 

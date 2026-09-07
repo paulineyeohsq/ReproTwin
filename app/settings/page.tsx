@@ -20,7 +20,7 @@ const SECTIONS: SettingsSection[] = [
   },
   {
     title: "Environmental alerts",
-    rows: [{ icon: Bell, label: "Alerts", value: "On", href: "/navigate" }],
+    rows: [{ icon: Bell, label: "Alerts", value: "On", href: "/" }],
   },
   {
     title: "Location",
@@ -28,7 +28,7 @@ const SECTIONS: SettingsSection[] = [
   },
   {
     title: "Privacy",
-    rows: [{ icon: Shield, label: "Trip history", value: "Stored on this device", href: "/trip-history" }],
+    rows: [{ icon: Shield, label: "Trip history", value: "Stored on this device", href: "/profile?tab=trips" }],
   },
   {
     title: "Data",

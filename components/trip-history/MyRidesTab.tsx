@@ -43,7 +43,7 @@ export function MyRidesTab() {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
         No recorded rides yet.{" "}
-        <Link href="/navigate" className="text-[var(--brand-dark)] underline">
+        <Link href="/" className="text-[var(--brand-dark)] underline">
           Start a ride
         </Link>{" "}
         to record one.

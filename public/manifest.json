@@ -2,7 +2,7 @@
   "name": "Exposure-Aware Navigation",
   "short_name": "E-Navigate",
   "description": "Get where you're going while avoiding the most polluted routes.",
-  "start_url": "/navigate",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#0e6e63",

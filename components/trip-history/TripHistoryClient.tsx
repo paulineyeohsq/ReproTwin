@@ -57,10 +57,7 @@ export function TripHistoryClient({
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Trip History
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="text-sm text-slate-500">
             {isReal
               ? "Real observed trajectories from the loaded real dataset, and rides you've recorded yourself."
               : "Most recent recorded rides from the demo dataset, and rides you've recorded yourself."}
@@ -103,11 +100,11 @@ export function TripHistoryClient({
       </div>
 
       <p className="text-xs text-slate-400">
-        Looking for the spatial exposure hotspot map? See{" "}
-        <a href="/exposure-map" className="underline hover:text-slate-600">
+        Looking for the spatial exposure hotspot map? See the{" "}
+        <a href="/profile?tab=map" className="underline hover:text-slate-600">
           Exposure Map
-        </a>
-        .
+        </a>{" "}
+        tab.
       </p>
 
       {tab === "trips" && (

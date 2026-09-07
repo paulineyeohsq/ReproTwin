@@ -2,22 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Map, History, Settings } from "lucide-react";
+import { Home, Compass, UserRound, Settings } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const ITEMS = [
-  { href: "/navigate", label: "Home", icon: Home },
-  { href: "/exposure-map", label: "Map", icon: Map },
-  { href: "/trip-history", label: "Trips", icon: History },
+  { href: "/", label: "Home", icon: Home },
+  { href: "/route-advisor", label: "Advisor", icon: Compass },
+  { href: "/profile", label: "Profile", icon: UserRound },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 // Mobile-only bottom tab bar (hidden on desktop, where NavBar's top nav
 // covers navigation instead). Fixed to the viewport bottom with safe-area
-// padding for the iOS home indicator / Android gesture bar.
+// padding for the iOS home indicator / Android gesture bar. Only the four
+// most essential destinations fit here — Air Quality, Traffic Data, Live
+// Exposure Demo and System Status stay desktop-nav-only, same as before.
 export function BottomNav() {
   const pathname = usePathname();
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
 
   return (
     <nav

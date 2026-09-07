@@ -6,15 +6,15 @@ added environmental-health layer: routes are compared on **travel time and
 estimated air-pollution exposure**, not just speed. The rider's fixed
 origin is Petaling Jaya, Klang Valley, but destination search, routing, and
 environmental data all work nationwide across Malaysia — see "Nationwide
-coverage" below. The demo/synthetic trip-history dataset (Dashboard,
-Exposure Map hotspots, the AI model) is still Klang-Valley-scoped.
+coverage" below. The demo/synthetic trip-history dataset (Rider Profile's
+Overview/Exposure Map tabs, the AI model) is still Klang-Valley-scoped.
 
 It is **not** a clinical product, not a fertility tool, and not a
 commercial navigation product. It does not collect health data as part of
-the core flow (see `/profile` and `/digital-twin` under "Research tools"
-for the earlier, separate research-prototype work on physiological
-context and longitudinal exposure modelling — kept but not part of the
-core navigation experience).
+the core flow (see `/profile`'s Profile tab for the earlier, separate
+research-prototype work on physiological context and longitudinal
+exposure modelling — kept but not part of the core navigation
+experience).
 
 ## Getting started
 
@@ -23,7 +23,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Try `/navigate`: pick
+Open [http://localhost:3000](http://localhost:3000). Try the home page: pick
 a destination (free-text search anywhere in Malaysia, or one of the 10
 popular-destination chips spanning multiple Peninsular states), compare
 Fastest/Balanced/Low-exposure routes (real OpenStreetMap roads via OSRM),
@@ -131,6 +131,37 @@ this order, all **off by default** and requiring your own key:
 
 See `.env.example` for all three variables.
 
+### Live traffic (optional, separate axis from the three modes above)
+
+A route's `traffic_level` input (which feeds both the exposure model and,
+now, the route's own travel time) is synthetic by default — sampled from an
+hour/road-type probability model (`lib/environment.ts`), not a real
+measurement. Setting `TOMTOM_API_KEY` (`lib/liveTraffic.ts`) switches this
+to [TomTom's Traffic Flow Segment Data API](https://developer.tomtom.com/),
+which reports real current speed vs. typical free-flow speed for a point.
+Free tier: 2,500 requests/day, no credit card required to register.
+
+Two caveats this integration is deliberately built around:
+
+- TomTom's free tier has no bulk "every segment in an area" endpoint the
+  way WAQI's `map/bounds` does — Flow Segment Data is one point at a time.
+  Rather than querying every one of a route's raw OSRM segments (which
+  could be dozens per route × 4 candidate routes), each route samples a
+  small, bounded number of points along its own geometry and every segment
+  uses whichever sample is nearest to it — the same "average of the area
+  passed through" approach already used for live PM2.5.
+- OSRM's public routing profile has no live congestion awareness — its
+  duration is a static, roughly free-flow estimate. When live traffic
+  samples exist for a route, that route's travel time (and therefore its
+  ranking as Fastest/Balanced) is scaled by the real average current-vs-
+  free-flow ratio from those samples, rather than left at OSRM's static
+  number.
+
+Falls through cleanly to the synthetic model with zero fabricated data if
+`TOMTOM_API_KEY` isn't set, a request fails, or a segment has no nearby
+sample — see System Status → "Live traffic data" for whether it's active,
+and a route's "Why this exposure?" panel for the actual per-request source.
+
 ### The three modes
 
 | Mode | Meaning | UI label |
@@ -173,21 +204,32 @@ partial number when the loaded range is short.
 
 ## Pages
 
-- **Dashboard** — current location/environment, 90-day trend, a
-  route-comparison preview, personalised recommendations.
-- **Navigate** — the core flow: destination search, real road-following
-  route comparison, live GPS ride tracking, dynamic "higher exposure
-  ahead" check against the pre-computed route model, post-ride summary,
-  save to trip history.
-- **Exposure Map** — spatial hotspot view (Low/Moderate/High) with
-  per-location detail.
-- **Trip History** — the demo/real dataset's trip list, plus "My rides"
-  (your own recorded rides) → **Trip Details** for any of your rides.
-- **System Status** — data source status, GPS/routing/environmental API
-  health, model performance.
-- **Research tools** (secondary nav, kept from earlier work, not part of
-  the core navigation product): AI Route Advisor, Digital Twin, What-If
-  Simulator, Live Exposure Demo, Rider Profile.
+- **Home** (`/`) — the core flow, formerly `/navigate`: destination search,
+  real road-following route comparison, live GPS ride tracking, dynamic
+  "higher exposure ahead" check against the pre-computed route model,
+  post-ride summary, save to trip history.
+- **AI Route Advisor** — full route reasoning: candidate comparison across
+  Fastest/Balanced/Low-exposure, the "Why this exposure?" provenance panel
+  (PM2.5/traffic source, station, measurement), and the exposure model's
+  own metrics.
+- **Air Quality** — nationwide live WAQI station map.
+- **Traffic Data** — a live TomTom traffic snapshot at major cities
+  nationwide (fixed sample points, not a station network — see
+  `lib/liveTraffic.ts` for why).
+- **Live Exposure Demo** — kept from earlier work.
+- **Rider Profile** (`/profile`) — a tabbed page absorbing what used to be
+  four separate routes: **Overview** (current status, exposure trend,
+  route-recommendation preview, personalised recommendations — formerly
+  the Dashboard), **Profile** (rider identity, digital twin stats,
+  self-reported vs. observed, physiological context), **Trip History**
+  (the demo/real dataset's trip list plus "My rides" → Trip Details), and
+  **Exposure Map** (spatial hotspot view). Deep-link a specific tab with
+  `/profile?tab=overview|profile|trips|map`.
+- **System Status** — data source status, GPS/routing/environmental/traffic
+  API health, model performance.
+
+Digital Twin and the What-If Simulator (both duplicated stats already
+covered by Rider Profile) were removed rather than folded in.
 
 ## Regenerating the synthetic dataset / model
 
@@ -202,6 +244,7 @@ npm run gen:model   # trains the exposure model on trips.json, writes data/model
 - `lib/routeExposure.ts`, `lib/roadInference.ts` — turns a real route's geometry+speed into per-segment exposure using real station data when loaded, else the synthetic environment/AI model.
 - `lib/environmentalDataProvider.ts` — the EnvironmentalDataProvider abstraction (live/historical/synthetic mode resolution + provenanced readings).
 - `lib/liveOpenAQ.ts`, `lib/livePurpleAir.ts`, `lib/liveEnvironment.ts` — optional OpenAQ / PurpleAir / WAQI live clients (MODE B, off by default, tried in that order).
+- `lib/liveTraffic.ts` — optional TomTom live traffic client (`TOMTOM_API_KEY`, off by default) feeding real `traffic_level` inputs and traffic-adjusted route travel times.
 - `lib/historicalOpenDosm.ts` — real, live fetch of OpenDOSM's national monthly dataset (MODE A, national).
 - `lib/tripStore.ts` — IndexedDB trip persistence for rides recorded via Navigate.
 - `lib/realDataAdapter.ts` / `lib/realDataEngine.ts` — CSV loading and spatial-temporal matching for a researcher-supplied station-level DOE dataset (MODE A, station-level).
@@ -217,5 +260,5 @@ No native/Apple/Huawei Health integration, no direct DOE/JAS live API (none
 was found to exist publicly — see "Environmental data investigation"; the
 optional live path goes through a third-party aggregator instead), no
 turn-by-turn voice navigation, no Supabase (pending credentials — see TRL-7
-report). Map tiles, OSRM, Nominatim, OpenDOSM, and (optionally) WAQI are the
-live network dependencies.
+report). Map tiles, OSRM, Nominatim, OpenDOSM, and (optionally) WAQI/TomTom
+are the live network dependencies.

@@ -43,8 +43,7 @@ export function ExposureMapClient({
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Exposure Map</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="text-sm text-slate-500">
             Spatial view of estimated air-pollution exposure across recurring locations in the loaded
             dataset, based on the nearest available monitoring/modelled environmental data.
           </p>

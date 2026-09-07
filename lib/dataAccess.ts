@@ -426,25 +426,6 @@ function quantile(values: number[], q: number): number {
   return sorted[base];
 }
 
-// Average pm2.5-based exposure rate per hour-of-day, derived from all
-// recorded segments. Used by the What-If Simulator to estimate exposure
-// under different riding-hour windows.
-export function getHourlyExposureRateProfile(): number[] {
-  const activeTrips = getActiveTrips();
-  const sums = new Array(24).fill(0);
-  const counts = new Array(24).fill(0);
-  for (const t of activeTrips) {
-    for (const seg of t.segments) {
-      const h = new Date(seg.env.timestamp).getUTCHours();
-      sums[h] += seg.env.pm25;
-      counts[h] += 1;
-    }
-  }
-  const overallAvg = activeTrips.flatMap((t) => t.segments.map((s) => s.env.pm25));
-  const fallback = overallAvg.length > 0 ? overallAvg.reduce((a, b) => a + b, 0) / overallAvg.length : 0;
-  return sums.map((s, h) => (counts[h] > 0 ? s / counts[h] : fallback));
-}
-
 export function getRiderProfile() {
   return RIDER;
 }
@@ -504,21 +485,6 @@ function getBestLowExposureRouteDelta(): RouteDeltaResult {
     };
   });
   return results.sort((a, b) => a.detourMin - b.detourMin)[0];
-}
-
-export function getMinLowExposureDetourMin(): number {
-  return getBestLowExposureRouteDelta().detourMin;
-}
-
-export function getLowExposureDiscount(): number {
-  const ratios = DESTINATIONS.map((dest) => {
-    const candidates = getCandidateRoutes(dest);
-    const fastest = candidates.find((c) => c.profile === "fastest");
-    const lowExposure = candidates.find((c) => c.profile === "low_exposure");
-    if (!fastest || !lowExposure || fastest.avgPm25 === 0) return 1;
-    return lowExposure.avgPm25 / fastest.avgPm25;
-  });
-  return Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100) / 100;
 }
 
 export function getRecommendationInputs(): RecommendationInputs {

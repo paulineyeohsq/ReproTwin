@@ -115,37 +115,109 @@ export interface MalaysiaStation {
 // Roughly covers all of Malaysia (Peninsular + Sabah/Sarawak); the WAQI
 // bounds query also returns nearby stations in Thailand/Singapore/Brunei/
 // Indonesia that happen to fall inside this box, so results are filtered
-// to station names WAQI itself labels "Malaysia".
+// to exclude those. This used to be an allowlist requiring the name to
+// contain "Malaysia" — but WAQI doesn't consistently include the country
+// in Malaysian station names (e.g. "Ipoh", "Perai", "Miri" are bare city
+// names), so that silently dropped real Malaysian stations from the map
+// while still admitting neighbouring-country stations that also happened
+// to omit "Malaysia" from within Malaysia's own bounding box. A blocklist
+// of the actual neighbouring countries (which WAQI does consistently
+// label) is the correct exclusion instead.
 const MALAYSIA_BOUNDS = { south: 0.5, west: 98.5, north: 7.8, east: 119.8 };
+const NEIGHBOURING_COUNTRY_MARKERS = ["Thailand", "Singapore", "Indonesia", "Brunei"];
 
-// One request for every reporting station in the country, rather than a
-// point-by-point query per location — this is what makes a genuine
-// nationwide live map feasible without hammering the API.
+// WAQI's map/bounds endpoint behaves like an interactive map viewport, not
+// a definitive station registry: for a single query spanning all of
+// Malaysia, it silently thins/clusters results the way a Leaflet map shows
+// fewer pins when zoomed out. Verified directly against the live API — a
+// single whole-country query missed real, currently-reporting stations
+// (e.g. "Seberang Jaya 2", "Jalan Tasek, Ipoh") that WAQI's own /search/
+// endpoint confirms exist, while a smaller, more zoomed-in box around the
+// same area returned them. Splitting the country into a grid of smaller
+// tiles and querying each recovers them. This specific 4x6 grid was
+// chosen empirically: it reliably surfaced every known-missing station in
+// testing, while a much finer grid (35+ tiles fired at once) started
+// triggering errors from WAQI, presumably from too many simultaneous
+// requests — so this trades some remaining incompleteness for staying
+// comfortably within what the API tolerates. Each tile is a separate
+// cached fetch (5-minute window, same as the rest of this module), so this
+// multiplies live WAQI request volume per *cache miss* by the tile count,
+// not per page view — worth keeping in mind against your token's daily
+// quota if traffic grows.
+const GRID_LAT_STEPS = 4;
+const GRID_LNG_STEPS = 6;
+
+interface BoundsBox {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
+function malaysiaGridTiles(): BoundsBox[] {
+  const { south, west, north, east } = MALAYSIA_BOUNDS;
+  const tiles: BoundsBox[] = [];
+  for (let i = 0; i < GRID_LAT_STEPS; i++) {
+    for (let j = 0; j < GRID_LNG_STEPS; j++) {
+      tiles.push({
+        south: south + (i * (north - south)) / GRID_LAT_STEPS,
+        north: south + ((i + 1) * (north - south)) / GRID_LAT_STEPS,
+        west: west + (j * (east - west)) / GRID_LNG_STEPS,
+        east: west + ((j + 1) * (east - west)) / GRID_LNG_STEPS,
+      });
+    }
+  }
+  return tiles;
+}
+
+interface WaqiBoundsEntry {
+  lat: number;
+  lon: number;
+  uid: number;
+  aqi: string;
+  station?: { name?: string; time?: string };
+}
+
+// One tile's worth of the grid. Never throws: a single tile's failure
+// (timeout, rate limit) just means that tile contributes no stations,
+// rather than failing the whole nationwide fetch.
+async function fetchBoundsTile(token: string, box: BoundsBox): Promise<WaqiBoundsEntry[]> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(
+      `https://api.waqi.info/map/bounds/?latlng=${box.south},${box.west},${box.north},${box.east}&token=${token}`,
+      { signal: controller.signal, next: { revalidate: 300 } }
+    );
+    clearTimeout(timeout);
+    if (!res.ok) return [];
+    const json = await res.json();
+    if (json.status !== "ok" || !Array.isArray(json.data)) return [];
+    return json.data;
+  } catch {
+    return []; // network failure/timeout — never fabricate station data
+  }
+}
+
+// A genuine nationwide live station list, built from a grid of smaller
+// tile queries rather than one whole-country request (see the grid
+// comment above for why) and de-duplicated by WAQI's own station uid,
+// since a station can legitimately appear in more than one tile's result.
 export async function fetchMalaysiaStations(): Promise<MalaysiaStation[]> {
   const token = process.env.WAQI_TOKEN;
   if (!token) return [];
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    const { south, west, north, east } = MALAYSIA_BOUNDS;
-    const res = await fetch(`https://api.waqi.info/map/bounds/?latlng=${south},${west},${north},${east}&token=${token}`, {
-      signal: controller.signal,
-      next: { revalidate: 300 },
-    });
-    clearTimeout(timeout);
-    if (!res.ok) return [];
+  const tileResults = await Promise.all(malaysiaGridTiles().map((box) => fetchBoundsTile(token, box)));
 
-    const json = await res.json();
-    if (json.status !== "ok" || !Array.isArray(json.data)) return [];
-
-    const stations: MalaysiaStation[] = [];
-    for (const s of json.data) {
+  const byUid = new Map<number, MalaysiaStation>();
+  for (const entries of tileResults) {
+    for (const s of entries) {
       const name: string = s.station?.name ?? "";
-      if (!name.includes("Malaysia")) continue; // exclude neighbouring countries in the same bounding box
+      if (NEIGHBOURING_COUNTRY_MARKERS.some((c) => name.includes(c))) continue; // exclude neighbouring countries in the same bounding box
       const aqi = Number(s.aqi);
       if (!Number.isFinite(aqi)) continue; // WAQI returns "-" for stations with no current reading
-      stations.push({
+      if (typeof s.uid !== "number" || byUid.has(s.uid)) continue;
+      byUid.set(s.uid, {
         name,
         lat: s.lat,
         lng: s.lon,
@@ -153,10 +225,8 @@ export async function fetchMalaysiaStations(): Promise<MalaysiaStation[]> {
         observedAt: s.station?.time ?? new Date().toISOString(),
       });
     }
-    return stations;
-  } catch {
-    return []; // network failure/timeout — never fabricate station data
   }
+  return [...byUid.values()];
 }
 
 export interface WaqiHistoricalAverage {

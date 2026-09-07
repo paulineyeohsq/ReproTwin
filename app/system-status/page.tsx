@@ -120,7 +120,7 @@ export default async function SystemStatusPage() {
       <Card>
         <CardHeader
           title="Live traffic data"
-          subtitle="Feeds the exposure model's traffic_level input and adjusts each route's travel time toward real current congestion — see lib/liveTraffic.ts"
+          subtitle="Feeds the exposure model's traffic_level input, adjusts each route's travel time toward real current congestion, and powers the Traffic Data page's per-road live speed map — see lib/liveTraffic.ts and app/api/traffic-tile"
         />
         <CardBody>
           {statusRow(

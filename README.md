@@ -162,6 +162,14 @@ Falls through cleanly to the synthetic model with zero fabricated data if
 sample — see System Status → "Live traffic data" for whether it's active,
 and a route's "Why this exposure?" panel for the actual per-request source.
 
+The same key also powers a second, visual integration: the Traffic Data
+page's live per-road map, using TomTom's [Flow Tiles](https://developer.tomtom.com/traffic-api/documentation/traffic-flow/flow-tiles)
+(colour-coded current-vs-free-flow speed rendered directly on road
+geometry, not just at fixed points) as a Leaflet overlay. Tile requests
+are proxied through `app/api/traffic-tile/[z]/[x]/[y]` so the browser
+never sees `TOMTOM_API_KEY` directly, the same pattern as every other
+external API key in this app.
+
 ### The three modes
 
 | Mode | Meaning | UI label |
@@ -213,9 +221,11 @@ partial number when the loaded range is short.
   (PM2.5/traffic source, station, measurement), and the exposure model's
   own metrics.
 - **Air Quality** — nationwide live WAQI station map.
-- **Traffic Data** — a live TomTom traffic snapshot at major cities
-  nationwide (fixed sample points, not a station network — see
-  `lib/liveTraffic.ts` for why).
+- **Traffic Data** — a live per-road traffic map (TomTom Flow Tiles,
+  proxied through `app/api/traffic-tile` so the API key stays
+  server-side), defaulting to Klang Valley, plus a nationwide snapshot
+  at fixed major-city sample points (not a station network — see
+  `lib/liveTraffic.ts` for why the snapshot can't be a bulk query).
 - **Live Exposure Demo** — kept from earlier work.
 - **Rider Profile** (`/profile`) — a tabbed page absorbing what used to be
   four separate routes: **Overview** (current status, exposure trend,

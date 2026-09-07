@@ -36,10 +36,10 @@ export function TrafficDataMapClient({
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Malaysia Traffic Data</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Live current-vs-free-flow speed at major cities nationwide, via TomTom.
+            Live per-road speed via TomTom&apos;s traffic map, plus a nationwide snapshot at major cities.
           </p>
         </div>
-        {samples.length > 0 && (
+        {(configured || samples.length > 0) && (
           <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">Live traffic data</Badge>
         )}
       </div>
@@ -60,9 +60,36 @@ export function TrafficDataMapClient({
       {configured && samples.length === 0 && (
         <Card>
           <CardBody className="text-sm text-slate-500">
-            No traffic data available right now (the live source may be temporarily unreachable). Try
-            again shortly.
+            The nationwide city-sample snapshot below isn&apos;t available right now (the live source may
+            be temporarily unreachable) — the traffic map above is unaffected. Try again shortly.
           </CardBody>
+        </Card>
+      )}
+
+      {configured && (
+        <Card>
+          <CardHeader
+            title="Live traffic map"
+            subtitle="Real per-road current-vs-free-flow speed, straight from TomTom's Flow Tiles — green is free-flowing, red/dark red is heavy congestion. Pan and zoom anywhere in Malaysia; defaults to Klang Valley (LDP/Federal Highway/NKVE)."
+          />
+          <CardBody className="h-[60vh] min-h-[420px] p-0">
+            <LeafletMap center={[3.06, 101.58]} zoom={11} trafficTileUrl="/api/traffic-tile/{z}/{x}/{y}" />
+          </CardBody>
+          <div className="flex flex-wrap items-center gap-3 border-t border-[var(--card-border)] px-5 py-2.5 text-xs text-slate-500">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-4 rounded-full" style={{ background: "#4ade80" }} /> Free-flowing
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-4 rounded-full" style={{ background: "#facc15" }} /> Moderate
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-4 rounded-full" style={{ background: "#f97316" }} /> Slow
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-4 rounded-full" style={{ background: "#dc2626" }} /> Heavy
+            </span>
+            <span className="text-slate-400">— TomTom&apos;s own colour scale, per road segment</span>
+          </div>
         </Card>
       )}
 

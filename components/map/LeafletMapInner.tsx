@@ -101,6 +101,7 @@ export function LeafletMapInner({
   riderColor = "#0e6e63",
   fitToContent = false,
   heightClass = "h-full",
+  trafficTileUrl,
 }: {
   center: [number, number];
   zoom?: number;
@@ -110,6 +111,11 @@ export function LeafletMapInner({
   riderColor?: string;
   fitToContent?: boolean;
   heightClass?: string;
+  // Leaflet TileLayer URL template (with {z}/{x}/{y} placeholders) for a
+  // live traffic overlay — see app/api/traffic-tile for the proxy that
+  // keeps TOMTOM_API_KEY server-side while still letting the browser make
+  // per-tile requests directly, as a TileLayer requires.
+  trafficTileUrl?: string;
 }) {
   const fitPositions = useMemo<[number, number][]>(() => {
     const pts: [number, number][] = [];
@@ -130,6 +136,9 @@ export function LeafletMapInner({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        {trafficTileUrl && (
+          <TileLayer attribution='Traffic: &copy; TomTom' url={trafficTileUrl} opacity={0.85} />
+        )}
         {fitToContent && fitPositions.length > 0 && (
           <FitBounds positions={fitPositions} />
         )}

@@ -8,8 +8,8 @@ import { Sparkles, ArrowRight } from "lucide-react";
 
 // Real road routing (OSRM) + real environmental data (live nationwide
 // stations / historical CSV, whichever is configured) — the same pipeline
-// /navigate and /route-advisor use, via getCandidateRoutesAsync. Falls back
-// to the procedural synthetic demo routes only if OSRM itself is entirely
+// Home and /route-advisor use, via getCandidateRoutesAsync. Falls back to
+// the procedural synthetic demo routes only if OSRM itself is entirely
 // unreachable, same as everywhere else in the app.
 export async function RouteRecommendationPreview({
   destination,
@@ -27,6 +27,7 @@ export async function RouteRecommendationPreview({
     ((fastest.predictedExposure - recommended.predictedExposure) / fastest.predictedExposure) * 100
   );
   const timeDelta = recommended.travelTimeMin - fastest.travelTimeMin;
+  const hasLiveTraffic = candidates.some((c) => c.trafficMode === "live");
 
   return (
     <Card>
@@ -64,6 +65,10 @@ export async function RouteRecommendationPreview({
           {reductionPct > 0
             ? `${reductionPct}% lower predicted exposure for approximately ${Math.max(0, timeDelta)} additional minute${timeDelta === 1 ? "" : "s"} of travel.`
             : "Comparable predicted exposure to the fastest route."}
+        </p>
+
+        <p className="text-xs text-slate-400">
+          Travel times {hasLiveTraffic ? "reflect live traffic conditions (TomTom)" : "use a synthetic traffic model — no live traffic source configured"}.
         </p>
 
         <Link href="/route-advisor">

@@ -13,7 +13,7 @@ import { DESTINATIONS, ORIGIN_LABEL, MAP_CENTER } from "@/lib/constants";
 import { scoreRoutes, ADVISOR_HOUR, PREFERENCE_WEIGHTS, type PreferenceKey } from "@/lib/routeScoring";
 import { getModelMetrics } from "@/lib/aiModel";
 import { cn } from "@/lib/cn";
-import { Sparkles, Clock, Wind, Route as RouteIcon, Info, Map as MapIcon } from "lucide-react";
+import { Sparkles, Clock, Wind, Route as RouteIcon, Map as MapIcon } from "lucide-react";
 import type { RouteProfile, CandidateRoute } from "@/lib/types";
 
 const PROFILE_COLORS: Record<RouteProfile, string> = {
@@ -99,13 +99,17 @@ export function RouteAdvisorClient({
   const fastest = candidates.find((c) => c.profile === "fastest");
   const metrics = getModelMetrics();
 
-  if (!recommended || !fastest) {
+  // This page only ever shows real road routes — never a fabricated map.
+  // If OSRM is unreachable, that's an honest "unavailable" state, not a
+  // silent fallback to the procedural demonstration geometry.
+  if (!usedRealRoads || !recommended || !fastest) {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">Motorcycle Route Advisor</h1>
         <p className="text-sm text-rose-600">
-          No route could be generated for this destination (both the live routing service and the
-          demonstration fallback failed). Try again shortly.
+          {!usedRealRoads
+            ? "The live road-routing service (OSRM) is unreachable right now, so no route can be shown for this destination. Try again shortly."
+            : "No route could be generated for this destination. Try again shortly."}
         </p>
       </div>
     );
@@ -138,15 +142,6 @@ export function RouteAdvisorClient({
           <EnvironmentalModeBadge mode={recommended.environmentalMode} />
         </div>
       </div>
-
-      {!usedRealRoads && (
-        <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          The live OpenStreetMap routing service (OSRM) was unreachable, so
-          these routes use the prototype's demonstration road network instead
-          of real road geometry for this destination.
-        </p>
-      )}
 
       <Card>
         <CardBody className="space-y-4">
@@ -326,6 +321,13 @@ export function RouteAdvisorClient({
                   : []),
                 { label: "Avg PM2.5 across segments", value: `${recommended.avgPm25} µg/m³` },
                 { label: "Measurement", value: "Estimated — nearest-station or simulated per road segment, never a direct on-road sensor" },
+                {
+                  label: "Traffic source",
+                  value: recommended.segments?.[0]?.trafficSource ?? "Prototype synthetic traffic model",
+                },
+                ...(recommended.trafficMode === "live" && recommended.avgTrafficRatio !== undefined
+                  ? [{ label: "Current vs. free-flow speed", value: `${Math.round(recommended.avgTrafficRatio * 100)}% (travel time adjusted accordingly)` }]
+                  : []),
                 { label: "Exposure contribution", value: `${recommended.predictedExposure} units (full route)` },
               ]}
             />
@@ -394,7 +396,7 @@ export function RouteAdvisorClient({
       <Card>
         <CardHeader
           title="Exposure prediction model"
-          subtitle="Gradient-boosted regression trees trained on the synthetic dataset — its PM2.5/PM10/NO2 inputs are real (nearest live station / historical CSV) whenever one is configured, but the model's own training data hasn't changed"
+          subtitle="Gradient-boosted regression trees trained on the synthetic dataset — its PM2.5/PM10/NO2 inputs are real (nearest live station / historical CSV) and its traffic_level input is real (live TomTom flow data) whenever configured, but the model's own training data hasn't changed"
         />
         <CardBody>
           <div className="grid grid-cols-3 gap-3 text-center sm:max-w-md">

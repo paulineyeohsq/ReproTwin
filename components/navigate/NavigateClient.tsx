@@ -127,6 +127,25 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The reading fetched at page load/GPS fix otherwise never updates
+  // itself again while a rider leaves this screen open — this keeps it
+  // current on a fixed timer. A ref (not a state dependency) holds the
+  // latest known point so the interval itself is only ever created once,
+  // rather than being torn down and recreated every time GPS position
+  // updates (which happens every few seconds while riding).
+  const currentPointRef = useRef<{ lat: number; lng: number }>({ lat: MAP_CENTER[0], lng: MAP_CENTER[1] });
+  useEffect(() => {
+    currentPointRef.current = position ?? homePosition ?? { lat: MAP_CENTER[0], lng: MAP_CENTER[1] };
+  }, [position, homePosition]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      refreshReading(currentPointRef.current.lat, currentPointRef.current.lng);
+    }, 30 * 60 * 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // --- Destination search ---
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -278,8 +297,12 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
         }),
       });
       const data: RouteFetchResponse = await res.json();
-      if (!data.routes || data.routes.length === 0) {
-        setRouteError("We couldn't find a route for that destination. Please try again.");
+      // Never show a fabricated route on the map — if the live routing
+      // service (OSRM) is unreachable, that's an honest "unavailable"
+      // state, same as an empty result, not a silent fallback to the
+      // procedural demonstration geometry.
+      if (!data.routes || data.routes.length === 0 || !data.usedRealRoads) {
+        setRouteError("The live routing service is unavailable right now. Please try again shortly.");
         setRideState("setup");
         return;
       }
@@ -745,9 +768,14 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
           }
         >
           <div className="space-y-2 pt-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              {candidates.length} route{candidates.length !== 1 ? "s" : ""}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                {candidates.length} route{candidates.length !== 1 ? "s" : ""}
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Traffic: {candidates.some((c) => c.trafficMode === "live") ? "Live (TomTom)" : "Synthetic model"}
+              </p>
+            </div>
             {candidates.map((c) => {
               const Icon = PROFILE_META[c.profile].icon;
               const isSelected = c.profile === selectedProfile;

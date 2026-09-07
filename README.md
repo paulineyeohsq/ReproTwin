@@ -49,10 +49,9 @@ trajectory is drawn and recorded.
   station readings. Search any Malaysian location (Navigate's search bar,
   or the Exposure Map) to see its real current conditions.
 - **Still Klang-Valley-scoped**: the synthetic 90-day demo trip-history
-  dataset, the Exposure Map's hotspot locations, and the AI exposure model
-  (all in `data/trips.json` etc.) — expanding that stays synthetic/fake
-  data either way, just covering a wider area, and wasn't part of this
-  round of changes.
+  dataset and the Exposure Map's hotspot locations (`data/trips.json`
+  etc.) — expanding that stays synthetic/fake data either way, just
+  covering a wider area, and wasn't part of this round of changes.
 
 ## What's real vs. synthetic
 
@@ -62,8 +61,8 @@ trajectory is drawn and recorded.
 | Geocoding | **Real** — OpenStreetMap Nominatim, no API key (`lib/geocode.ts`). |
 | Device GPS | **Real** — `navigator.geolocation.watchPosition()`, only after "Start Ride"; never fabricated. |
 | Environmental data | Three explicit modes — see "Environmental data investigation" below. Never mixes a real and a synthetic value without labelling which is which. |
-| Exposure calculation | Modelled estimate (PM2.5 × duration), always — never called a personal/measured exposure. |
-| AI exposure model | Trained on the synthetic dataset only; UI states this explicitly rather than reporting a fabricated real-data accuracy figure. |
+| Exposure calculation | Modelled estimate (real PM2.5 × real, traffic-adjusted duration, summed per segment) — no machine-learning model in the loop; see `lib/routeExposure.ts`. Never called a personal/measured exposure. |
+| Legacy AI exposure model | `data/model.json` / `lib/aiModel.ts` remain in the repo from earlier work (trained on the synthetic dataset only) but are no longer called by any live calculation — see System Status → "Exposure calculation method". |
 | Physiological data | Always synthetic; not part of the core navigation flow. |
 | Trip storage | Real — browser IndexedDB (`lib/tripStore.ts`), not localStorage. No Supabase project is connected in this environment; the store's interface is deliberately storage-agnostic so a server-backed implementation can replace it later without touching any caller. |
 
@@ -133,13 +132,13 @@ See `.env.example` for all three variables.
 
 ### Live traffic (optional, separate axis from the three modes above)
 
-A route's `traffic_level` input (which feeds both the exposure model and,
-now, the route's own travel time) is synthetic by default — sampled from an
-hour/road-type probability model (`lib/environment.ts`), not a real
-measurement. Setting `TOMTOM_API_KEY` (`lib/liveTraffic.ts`) switches this
-to [TomTom's Traffic Flow Segment Data API](https://developer.tomtom.com/),
-which reports real current speed vs. typical free-flow speed for a point.
-Free tier: 2,500 requests/day, no credit card required to register.
+A route's travel time (and therefore its ranking as Fastest/Balanced) is
+synthetic-ish by default — OSRM's public profile returns a static, roughly
+free-flow duration, not a real-time measurement. Setting `TOMTOM_API_KEY`
+(`lib/liveTraffic.ts`) switches this to [TomTom's Traffic Flow Segment Data API](https://developer.tomtom.com/),
+which reports real current speed vs. typical free-flow speed for a point,
+used to scale that duration toward real current congestion. Free tier:
+2,500 requests/day, no credit card required to register.
 
 Two caveats this integration is deliberately built around:
 
@@ -214,12 +213,13 @@ partial number when the loaded range is short.
 
 - **Home** (`/`) — the core flow, formerly `/navigate`: destination search,
   real road-following route comparison, live GPS ride tracking, dynamic
-  "higher exposure ahead" check against the pre-computed route model,
-  post-ride summary, save to trip history.
-- **AI Route Advisor** — full route reasoning: candidate comparison across
-  Fastest/Balanced/Low-exposure, the "Why this exposure?" provenance panel
-  (PM2.5/traffic source, station, measurement), and the exposure model's
-  own metrics.
+  "higher exposure ahead" check, post-ride summary, save to trip history.
+- **AI Route Advisor** (retained name; the exposure ranking itself is a
+  plain real-data formula, not machine learning — see "What's real vs.
+  synthetic" above) — full route reasoning: free-text origin/destination
+  search, candidate comparison across Fastest/Balanced/Low-exposure, and
+  the "Why this exposure?" provenance panel (PM2.5/traffic source,
+  station, measurement).
 - **Air Quality** — nationwide live WAQI station map.
 - **Traffic Data** — a live per-road traffic map (TomTom Flow Tiles,
   proxied through `app/api/traffic-tile` so the API key stays
@@ -245,7 +245,8 @@ covered by Rider Profile) were removed rather than folded in.
 
 ```bash
 npm run gen:data    # writes data/trips.json, physiology.json, hotspots.json
-npm run gen:model   # trains the exposure model on trips.json, writes data/model.json
+npm run gen:model   # trains the legacy GBM model on trips.json, writes data/model.json
+                     # (kept from earlier work; no longer used by any live calculation)
 ```
 
 ## Project structure

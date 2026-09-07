@@ -2,7 +2,6 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EnvironmentalModeBadge } from "@/components/ui/EnvironmentalModeBadge";
 import { getDataProvenance, getDataQuality, getRealDataSummary } from "@/lib/dataAccess";
-import { getModelMetrics } from "@/lib/aiModel";
 import { getDataModeStatus } from "@/lib/dataMode";
 import { getEnvironmentalMode } from "@/lib/environmentalDataProvider";
 import { isLiveEnvironmentConfigured } from "@/lib/liveEnvironment";
@@ -40,7 +39,6 @@ export default async function SystemStatusPage() {
   const quality = getDataQuality();
   const realSummary = getRealDataSummary();
   const { hasRealEnvironmentData, hasRealMobilityData } = getDataModeStatus();
-  const metrics = getModelMetrics();
   const environmentalMode = getEnvironmentalMode();
   const openAqConfigured = isOpenAqConfigured();
   const purpleAirConfigured = isPurpleAirConfigured();
@@ -120,7 +118,7 @@ export default async function SystemStatusPage() {
       <Card>
         <CardHeader
           title="Live traffic data"
-          subtitle="Feeds the exposure model's traffic_level input, adjusts each route's travel time toward real current congestion, and powers the Traffic Data page's per-road live speed map — see lib/liveTraffic.ts and app/api/traffic-tile"
+          subtitle="Adjusts each route's travel time toward real current congestion and powers the Traffic Data page's per-road live speed map — see lib/liveTraffic.ts and app/api/traffic-tile"
         />
         <CardBody>
           {statusRow(
@@ -134,7 +132,7 @@ export default async function SystemStatusPage() {
       <Card>
         <CardHeader
           title="Real historical data collection"
-          subtitle="Accumulating real WAQI snapshots over time (Netlify Blobs), for a future model retrain on real ambient PM2.5 — see the exposure-model explanation in-chat for why this is separate from the exposure-prediction model itself"
+          subtitle="Accumulating real WAQI snapshots over time (Netlify Blobs) as a real historical PM2.5 dataset for research use — independent of the live route exposure calculation above"
         />
         <CardBody>
           {statusRow(
@@ -171,17 +169,25 @@ export default async function SystemStatusPage() {
 
       <Card>
         <CardHeader
-          title="Exposure prediction model"
-          subtitle="The dose-rate model itself is trained on synthetic data only — that hasn't changed. What HAS changed: its PM2.5/PM10/NO2 inputs (see Environmental data modes above) and traffic_level input (see Live traffic data above) are now real whenever configured, instead of always synthetic. The metrics below describe the model's fit to its synthetic training set, not real-world accuracy — they don't change when the model's real-world inputs do."
+          title="Exposure calculation method"
+          subtitle="No machine-learning model — route exposure is a plain, auditable formula: Σ (segment PM2.5 × segment duration), summed across every road segment"
         />
         <CardBody>
-          {statusRow("Model status", true, "Trained on demonstration data only; real-world validation pending")}
-          {statusRow("Input data (this request)", environmentalMode !== "synthetic", environmentalMode === "synthetic" ? "Synthetic (no live/historical source configured)" : `Real when available (current mode: ${environmentalMode})`)}
-          {statusRow("Held-out MAE", true, `${metrics.mae}`)}
-          {statusRow("Held-out RMSE", true, `${metrics.rmse}`)}
-          {statusRow("Held-out R²", true, `${metrics.r2}`)}
-          {statusRow("Training samples", true, `${metrics.nTrain.toLocaleString()} train / ${metrics.nTest.toLocaleString()} test`)}
-          {statusRow("Trained at", true, new Date(metrics.trainedAt).toLocaleString("en-MY", { timeZone: "Asia/Kuala_Lumpur" }))}
+          {statusRow(
+            "PM2.5 per segment",
+            environmentalMode !== "synthetic",
+            environmentalMode === "synthetic" ? "Synthetic (no live/historical source configured)" : `Real when available (current mode: ${environmentalMode})`
+          )}
+          {statusRow(
+            "Segment duration",
+            true,
+            "Real TomTom-adjusted travel time when configured, else OSRM's static estimate — see Live traffic data above"
+          )}
+          {statusRow(
+            "Legacy ML model",
+            null,
+            "data/model.json exists from earlier work but is no longer called by any live calculation"
+          )}
         </CardBody>
       </Card>
 

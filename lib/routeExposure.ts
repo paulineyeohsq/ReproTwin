@@ -1,16 +1,20 @@
 // Computes estimated air-pollution exposure along a real, road-following
 // route (from lib/routingEngine.ts) by treating every OSRM routing-graph
 // edge as one segment: infer its road class from the route's own speed
-// characteristic, estimate traffic/pollutant conditions for the requested
-// hour using the existing synthetic environmental model, and predict a
-// dose with the already-trained exposure model. This is a *modelled
-// estimate*, not a direct measurement — labelled as such everywhere it's
-// shown.
+// characteristic, resolve the real PM2.5 nearest to that segment (live
+// station / historical CSV, falling back to the synthetic environmental
+// model only when neither is available), and compute a dose as
+// concentration x time — no machine-learning model in this calculation.
+// Deliberately simple and auditable: every route's predicted exposure is
+// the sum of (real, per-segment PM2.5) x (real, traffic-adjusted segment
+// duration), so it stays directly explainable from the same real data
+// shown in the route's "Why this exposure?" panel. This is still a
+// *modelled estimate*, not a direct on-road sensor measurement — labelled
+// as such everywhere it's shown.
 
 import type { OsrmRouteResult, LatLng } from "./routingEngine";
 import { inferRoadType } from "./roadInference";
 import { inferTrafficLevel, sampleWeather, samplePollutants } from "./environment";
-import { predictExposureRate } from "./aiModel";
 import { segmentDose, classifyPm25 } from "./exposure";
 import { mulberry32, hashStringToSeed } from "./rng";
 import { getDataModeStatus } from "./dataMode";
@@ -79,7 +83,6 @@ export function computeRouteExposure(
   routeId: string,
   route: OsrmRouteResult,
   hour: number,
-  dayOfWeek: number,
   liveStations: MalaysiaStation[] = [],
   trafficSamples: LiveTrafficSample[] = []
 ): RouteExposureResult {
@@ -158,20 +161,11 @@ export function computeRouteExposure(
       no2 = sampled.no2;
     }
 
-    const rate = predictExposureRate({
-      pm25,
-      pm10,
-      no2,
-      traffic_level: trafficLevel,
-      road_type: roadType,
-      speed: speedKmh,
-      hour,
-      day_of_week: dayOfWeek,
-      temperature: weather.temperature,
-      humidity: weather.humidity,
-      wind_speed: weather.wind_speed,
-    });
-    const exposure = segmentDose(rate, durationMin / 60);
+    // Real dose formula (concentration x time), no model in the loop —
+    // pm25 is the real reading resolved above (live station / historical
+    // CSV / synthetic fallback), durationMin already reflects real
+    // traffic-adjusted travel time when TomTom is configured.
+    const exposure = segmentDose(pm25, durationMin / 60);
 
     segments.push({
       segmentId: `${routeId}-seg${i}`,
@@ -187,11 +181,12 @@ export function computeRouteExposure(
       pm10: Math.round(pm10 * 10) / 10,
       no2: Math.round(no2 * 10) / 10,
       exposure: Math.round(exposure * 1000) / 1000,
-      // Colour-code by dose *rate* (pm25-equivalent, µg/m³ scale) rather
+      // Colour-code by the real PM2.5 concentration itself (µg/m³) rather
       // than the tiny absolute dose of one short segment — this is what
       // makes "which part of the journey contributes most" visually
-      // meaningful regardless of how long each segment took to traverse.
-      exposureLevel: classifyPm25(rate),
+      // meaningful regardless of how long each segment took to traverse,
+      // and keeps the map colouring directly traceable to a real reading.
+      exposureLevel: classifyPm25(pm25),
       measurement: "estimated",
       pm25Source,
       stationName,

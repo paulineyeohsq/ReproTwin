@@ -2,7 +2,6 @@ import type { BaseRoute, CandidateRoute, RoadType, RouteProfile, RouteWaypointDe
 import { findBaseRouteByDestination } from "./baseRoutes";
 import { resampleRoute, routeDistanceKm } from "./geo";
 import { inferTrafficLevel, sampleWeather, samplePollutants } from "./environment";
-import { predictExposureRate } from "./aiModel";
 import { mulberry32, hashStringToSeed } from "./rng";
 import { fetchDiverseRoadRoutes, type LatLng, type OsrmRouteResult } from "./routingEngine";
 import { computeRouteExposure } from "./routeExposure";
@@ -11,8 +10,6 @@ import { fetchLiveTrafficForRoute, averageTrafficRatio } from "./liveTraffic";
 import { ADVISOR_HOUR, PREFERENCE_WEIGHTS } from "./routeScoring";
 
 export { ADVISOR_HOUR, PREFERENCE_WEIGHTS, scoreRoutes, type PreferenceKey } from "./routeScoring";
-
-const ADVISOR_DAY_OF_WEEK = 3; // a generic weekday (Wednesday)
 
 export const PROCEDURAL_ROAD_SOURCE = "Prototype road network (routing service unavailable — demonstration fallback)";
 export const OSRM_ROAD_SOURCE = "OpenStreetMap road network via OSRM";
@@ -89,7 +86,7 @@ function buildCandidate(
 
   for (const p of points) {
     const trafficLevel = inferTrafficLevel(hour, p.roadType, rng);
-    const { pm25, pm10, no2 } = samplePollutants(
+    const { pm25 } = samplePollutants(
       hour,
       p.roadType,
       trafficLevel,
@@ -97,21 +94,9 @@ function buildCandidate(
       rng
     );
     pm25Sum += pm25;
-
-    const rate = predictExposureRate({
-      pm25,
-      pm10,
-      no2,
-      traffic_level: trafficLevel,
-      road_type: p.roadType,
-      speed: cfg.speedKmh,
-      hour,
-      day_of_week: ADVISOR_DAY_OF_WEEK,
-      temperature: weather.temperature,
-      humidity: weather.humidity,
-      wind_speed: weather.wind_speed,
-    });
-    totalExposure += rate * stepDurationHours;
+    // Real dose formula (concentration x time) — no model, matching
+    // computeRouteExposure's real-road calculation.
+    totalExposure += pm25 * stepDurationHours;
   }
 
   return {
@@ -238,7 +223,7 @@ export async function getCandidateRoutesAsync(
 
     const scored = adjustedRoutes.map((route, i) => ({
       route,
-      exposure: computeRouteExposure(`${idBase}-raw${i}`, route, hour, ADVISOR_DAY_OF_WEEK, liveStations, trafficByRoute[i]),
+      exposure: computeRouteExposure(`${idBase}-raw${i}`, route, hour, liveStations, trafficByRoute[i]),
       avgTrafficRatio: averageTrafficRatio(trafficByRoute[i]) ?? undefined,
     }));
 

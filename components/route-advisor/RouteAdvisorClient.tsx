@@ -11,7 +11,6 @@ import { LeafletMap } from "@/components/map/LeafletMap";
 import type { MapPolyline } from "@/components/map/LeafletMapInner";
 import { POPULAR_DESTINATIONS, MAP_CENTER } from "@/lib/constants";
 import { scoreRoutes, ADVISOR_HOUR, PREFERENCE_WEIGHTS, type PreferenceKey } from "@/lib/routeScoring";
-import { getModelMetrics } from "@/lib/aiModel";
 import { cn } from "@/lib/cn";
 import { Sparkles, Clock, Wind, Route as RouteIcon, Map as MapIcon, Search, Locate, Loader2, MapPin } from "lucide-react";
 import type { RouteProfile, CandidateRoute } from "@/lib/types";
@@ -225,7 +224,6 @@ export function RouteAdvisorClient({
   );
   const recommended = ranked[0]?.route;
   const fastest = candidates.find((c) => c.profile === "fastest");
-  const metrics = getModelMetrics();
   const activeProfile = selectedProfile ?? recommended?.profile;
 
   const exposureDelta =
@@ -242,9 +240,8 @@ export function RouteAdvisorClient({
             Motorcycle Route Advisor
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Compare candidate motorcycle routes between any two points in Malaysia and let the trained
-            exposure model recommend a balance of travel time and predicted pollution exposure — not
-            simply the shortest route.
+            Compare candidate motorcycle routes between any two points in Malaysia, scored on a balance
+            of travel time and real, measured pollution exposure — not simply the shortest route.
           </p>
         </div>
         {recommended && (
@@ -598,35 +595,21 @@ export function RouteAdvisorClient({
 
       <Card>
         <CardHeader
-          title="Exposure prediction model"
-          subtitle="Gradient-boosted regression trees trained on the synthetic dataset — its PM2.5/PM10/NO2 inputs are real (nearest live station / historical CSV) and its traffic_level input is real (live TomTom flow data) whenever configured, but the model's own training data hasn't changed"
+          title="Exposure calculation method"
+          subtitle="No machine-learning model — a plain, auditable formula over real data"
         />
-        <CardBody>
-          <div className="grid grid-cols-3 gap-3 text-center sm:max-w-md">
-            <div>
-              <div className="text-lg font-semibold text-slate-800">{metrics.mae}</div>
-              <div className="text-xs text-slate-400">MAE</div>
-            </div>
-            <div>
-              <div className="text-lg font-semibold text-slate-800">{metrics.rmse}</div>
-              <div className="text-xs text-slate-400">RMSE</div>
-            </div>
-            <div>
-              <div className="text-lg font-semibold text-slate-800">{metrics.r2}</div>
-              <div className="text-xs text-slate-400">R²</div>
-            </div>
-          </div>
-          <p className="mt-3 text-xs font-medium text-amber-700">
-            Model trained using demonstration data only; real-world validation
-            pending.
+        <CardBody className="space-y-2">
+          <p className="text-sm text-slate-700">
+            <span className="font-mono text-xs">exposure = Σ (segment PM2.5 × segment duration)</span>
           </p>
-          <p className="mt-1 text-xs text-slate-400">
-            Evaluated on a held-out {metrics.nTest.toLocaleString()}-sample
-            test split ({metrics.nTrain.toLocaleString()} training samples).
-            These metrics describe the model&apos;s fit to its synthetic
-            training set, not real-world accuracy — see the route&apos;s own
-            &quot;Why this exposure?&quot; panel above for the actual PM2.5
-            source used in this prediction.
+          <p className="text-xs text-slate-500">
+            Each road segment&apos;s PM2.5 is the real reading from the nearest live DOE/JAS station (via
+            WAQI) or historical CSV when configured, falling back to the synthetic model only when
+            neither is available. Segment duration reflects real TomTom traffic conditions when
+            configured, not OSRM&apos;s static estimate. The route total is simply the sum across every
+            segment — every number is traceable back to a real reading, with no model in between. See the
+            route&apos;s own &quot;Why this exposure?&quot; panel above for the actual sources used in this
+            calculation.
           </p>
         </CardBody>
       </Card>

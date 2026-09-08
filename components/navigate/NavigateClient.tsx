@@ -184,7 +184,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
   const [rideState, setRideState] = useState<RideState>("setup");
   const [candidates, setCandidates] = useState<CandidateRoute[]>([]);
   const [routeError, setRouteError] = useState<string | null>(null);
-  const [selectedProfile, setSelectedProfile] = useState<RouteProfile>("balanced");
+  const [selectedProfile, setSelectedProfile] = useState<RouteProfile>("low_exposure");
   const [sheetState, setSheetState] = useState<SheetState>("collapsed");
 
   // Everything past the search screen takes over the full viewport — the
@@ -308,7 +308,11 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
       }
       setCandidates(data.routes);
       setDestination(dest);
-      setSelectedProfile("balanced");
+      // Default to the lowest-exposure route actually present for this
+      // trip -- a hardcoded "balanced" left the bottom sheet's peek bar
+      // blank whenever a trip has no genuinely distinct Balanced
+      // candidate (selectedRoute below would find nothing to show).
+      setSelectedProfile(data.routes.find((c) => c.profile === "low_exposure")?.profile ?? data.routes[0].profile);
       setSheetState("expanded");
       setRideState("comparing");
     } catch {

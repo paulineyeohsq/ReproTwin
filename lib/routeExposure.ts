@@ -15,7 +15,7 @@
 import type { OsrmRouteResult, LatLng } from "./routingEngine";
 import { inferRoadType } from "./roadInference";
 import { inferTrafficLevel, sampleWeather, samplePollutants } from "./environment";
-import { segmentDose, classifyPm25 } from "./exposure";
+import { segmentDose, classifyPm25, average } from "./exposure";
 import { mulberry32, hashStringToSeed } from "./rng";
 import { getDataModeStatus } from "./dataMode";
 import { getLatestHistoricalReading, ENVIRONMENT_SOURCE_LABEL } from "./realDataEngine";
@@ -251,10 +251,6 @@ export function computeRouteExposure(
     environmentalMode,
     trafficMode,
   };
-}
-
-function average(values: number[]): number {
-  return values.reduce((s, v) => s + v, 0) / values.length;
 }
 
 export function midpoint(coords: LatLng[]): LatLng {

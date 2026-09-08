@@ -2,6 +2,7 @@ import tripsData from "@/data/trips.json";
 import physiologyData from "@/data/physiology.json";
 import type {
   Trip,
+  TripSegment,
   HealthRecord,
   Hotspot,
   ExposureLevel,
@@ -11,7 +12,7 @@ import type {
   DataQuality,
   RealDataSummary,
 } from "./types";
-import { classifyDailyRate, classifyPm25 } from "./exposure";
+import { classifyDailyRate, classifyPm25, averageEnvByArea } from "./exposure";
 import { RIDER, DESTINATIONS } from "./constants";
 import { getCandidateRoutes } from "./routeAdvisor";
 import type { RecommendationInputs } from "./recommendations";
@@ -153,13 +154,12 @@ export interface DailyAggregate {
 
 export function getDailyAggregates(): DailyAggregate[] {
   const activeTrips = getActiveTrips();
-  const byDate = new Map<string, { exposure: number; minutes: number; pm25Sum: number; count: number }>();
+  const byDate = new Map<string, { exposure: number; minutes: number; segments: TripSegment[] }>();
   for (const t of activeTrips) {
-    const e = byDate.get(t.date) ?? { exposure: 0, minutes: 0, pm25Sum: 0, count: 0 };
+    const e = byDate.get(t.date) ?? { exposure: 0, minutes: 0, segments: [] };
     e.exposure += t.exposure;
     e.minutes += t.durationMin;
-    e.pm25Sum += t.avgPm25;
-    e.count += 1;
+    e.segments.push(...t.segments);
     byDate.set(t.date, e);
   }
   const dates = getAllTripDates();
@@ -169,7 +169,9 @@ export function getDailyAggregates(): DailyAggregate[] {
       date,
       exposure: e ? Math.round(e.exposure * 10) / 10 : 0,
       ridingHours: e ? Math.round((e.minutes / 60) * 100) / 100 : 0,
-      avgPm25: e ? Math.round((e.pm25Sum / e.count) * 10) / 10 : 0,
+      // Per distinct real area (station) that day, not per trip/segment —
+      // see averageEnvByArea in lib/exposure.ts.
+      avgPm25: e ? Math.round(averageEnvByArea(e.segments).avgPm25 * 10) / 10 : 0,
     };
   });
 }
@@ -435,25 +437,19 @@ export function getWorkingDayCountLast90(): number {
 }
 
 export function getPeakHourExposureRatio(): number {
-  let peakSum = 0;
-  let peakCount = 0;
-  let otherSum = 0;
-  let otherCount = 0;
+  const peakSegments: TripSegment[] = [];
+  const otherSegments: TripSegment[] = [];
   for (const t of getActiveTrips()) {
     for (const seg of t.segments) {
       const h = new Date(seg.env.timestamp).getUTCHours();
       const isPeak = (h >= 7 && h < 9) || (h >= 17 && h < 20);
-      if (isPeak) {
-        peakSum += seg.env.pm25;
-        peakCount += 1;
-      } else {
-        otherSum += seg.env.pm25;
-        otherCount += 1;
-      }
+      (isPeak ? peakSegments : otherSegments).push(seg);
     }
   }
-  const peakAvg = peakCount > 0 ? peakSum / peakCount : 0;
-  const otherAvg = otherCount > 0 ? otherSum / otherCount : 1;
+  // Per distinct real area (station) within each bucket, not per matched
+  // segment — see averageEnvByArea in lib/exposure.ts.
+  const peakAvg = averageEnvByArea(peakSegments).avgPm25;
+  const otherAvg = otherSegments.length > 0 ? averageEnvByArea(otherSegments).avgPm25 : 1;
   return otherAvg === 0 ? 1 : peakAvg / otherAvg;
 }
 
@@ -510,25 +506,20 @@ export interface EnvironmentalSummary {
 
 export function getEnvironmentalSummary(rangeDays = 30): EnvironmentalSummary {
   const recentDates = new Set(getAllTripDates().slice(-rangeDays));
-  let pm25Sum = 0;
-  let pm10Sum = 0;
-  let no2Sum = 0;
-  let count = 0;
+  const segments: TripSegment[] = [];
   for (const t of getActiveTrips()) {
     if (!recentDates.has(t.date)) continue;
-    for (const seg of t.segments) {
-      pm25Sum += seg.env.pm25;
-      pm10Sum += seg.env.pm10;
-      no2Sum += seg.env.no2;
-      count += 1;
-    }
+    segments.push(...t.segments);
   }
-  if (count === 0) return { avgPm25: 0, avgPm10: 0, avgNo2: 0, recordCount: 0 };
+  if (segments.length === 0) return { avgPm25: 0, avgPm10: 0, avgNo2: 0, recordCount: 0 };
+  // Per distinct real area (station) across the whole window, not per
+  // matched segment — see averageEnvByArea in lib/exposure.ts.
+  const { avgPm25, avgPm10, avgNo2 } = averageEnvByArea(segments);
   return {
-    avgPm25: Math.round((pm25Sum / count) * 10) / 10,
-    avgPm10: Math.round((pm10Sum / count) * 10) / 10,
-    avgNo2: Math.round((no2Sum / count) * 10) / 10,
-    recordCount: count,
+    avgPm25: Math.round(avgPm25 * 10) / 10,
+    avgPm10: Math.round(avgPm10 * 10) / 10,
+    avgNo2: Math.round(avgNo2 * 10) / 10,
+    recordCount: segments.length,
   };
 }
 

@@ -17,7 +17,7 @@ import { loadRealEnvironmentData, loadRealMobilityData, type RealEnvironmentRow 
 import { resolveTownAnchor } from "./townAnchors";
 import { haversineKm } from "./geo";
 import { sampleWeather } from "./environment";
-import { segmentDose, sumExposure, classifyTripExposure } from "./exposure";
+import { segmentDose, sumExposure, classifyTripExposure, averageEnvByArea } from "./exposure";
 import { mulberry32, hashStringToSeed } from "./rng";
 import { inferRoadType, inferTrafficLevel } from "./roadInference";
 import type { Trip, TripSegment, GPSPoint } from "./types";
@@ -305,9 +305,9 @@ export function computeRealData(): RealDataResult {
       );
     }
     const avgSpeed = durationMin > 0 ? distanceKm / (durationMin / 60) : 0;
-    const avgPm25 = segments.reduce((s, seg) => s + seg.env.pm25, 0) / segments.length;
-    const avgPm10 = segments.reduce((s, seg) => s + seg.env.pm10, 0) / segments.length;
-    const avgNo2 = segments.reduce((s, seg) => s + seg.env.no2, 0) / segments.length;
+    // Per distinct real station encountered, not per matched GPS point —
+    // see averageEnvByArea in lib/exposure.ts.
+    const { avgPm25, avgPm10, avgNo2 } = averageEnvByArea(segments);
     const exposure = sumExposure(segments.map((s) => s.exposure));
     const tripId = points[0].tripId ?? `RT${idx}`;
 

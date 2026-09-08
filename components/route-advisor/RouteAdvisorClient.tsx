@@ -123,9 +123,15 @@ export function RouteAdvisorClient({
 
   const [selectedProfile, setSelectedProfile] = useState<RouteProfile | null>(null);
   const [showExposureColouring, setShowExposureColouring] = useState(true);
-  const [hour, setHour] = useState<number>(ADVISOR_HOUR);
+  // "live" resolves to the real current hour at fetch time, rather than a
+  // fixed pick — a natural complement to the fixed-hour options, since the
+  // hour value only ever drives the synthetic fallback layer (see
+  // formatHourLabel/peakLabel below); real live station/traffic data is
+  // unaffected by which one is selected.
+  const [timeSelection, setTimeSelection] = useState<string>(String(ADVISOR_HOUR));
+  const resolvedHour = timeSelection === "live" ? new Date().getHours() : Number(timeSelection);
 
-  async function fetchRoutes(nextOrigin: Place, nextDestination: Place, nextHour: number = hour) {
+  async function fetchRoutes(nextOrigin: Place, nextDestination: Place, nextHour: number = resolvedHour) {
     setLoading(true);
     setFetchError(null);
     setSelectedProfile(null);
@@ -208,8 +214,9 @@ export function RouteAdvisorClient({
     fetchRoutes(origin, place);
   }
 
-  function handleHourChange(nextHour: number) {
-    setHour(nextHour);
+  function handleTimeChange(selection: string) {
+    setTimeSelection(selection);
+    const nextHour = selection === "live" ? new Date().getHours() : Number(selection);
     fetchRoutes(origin, destination, nextHour);
   }
 
@@ -431,19 +438,23 @@ export function RouteAdvisorClient({
                   <span className="flex flex-wrap items-center gap-1.5">
                     <span>Simulated for</span>
                     <select
-                      value={hour}
-                      onChange={(e) => handleHourChange(Number(e.target.value))}
+                      value={timeSelection}
+                      onChange={(e) => handleTimeChange(e.target.value)}
                       disabled={loading}
                       aria-label="Time of day to simulate"
                       className="rounded-md border border-slate-200 bg-[var(--card)] px-1.5 py-0.5 text-xs font-medium text-slate-700 disabled:opacity-50"
                     >
+                      <option value="live">Live (now)</option>
                       {Array.from({ length: 24 }, (_, h) => (
                         <option key={h} value={h}>
                           {formatHourLabel(h)}
                         </option>
                       ))}
                     </select>
-                    <span>({peakLabel(hour)})</span>
+                    <span>
+                      {timeSelection === "live" && <>· {formatHourLabel(resolvedHour)} </>}
+                      ({peakLabel(resolvedHour)})
+                    </span>
                   </span>
                 }
                 action={

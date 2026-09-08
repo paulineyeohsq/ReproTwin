@@ -768,13 +768,14 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
                     })()}
                     {PROFILE_META[selectedRoute.profile].label}
                   </div>
-                  <div className="mt-1 flex items-center gap-2.5 text-[11px] text-slate-500">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-slate-500">
                     <span className={cn("flex items-center gap-1 font-medium", TRAFFIC_LEVEL_COLOR[selectedRoute.trafficLevel])}>
                       <Gauge className="h-3 w-3" /> {TRAFFIC_LEVEL_LABELS[selectedRoute.trafficLevel]} traffic
                     </span>
                     <span className="flex items-center gap-1">
                       <Wind className="h-3 w-3" /> AQI {selectedRoute.avgAqi} · {selectedRoute.avgPm25} µg/m³
                     </span>
+                    <span className="font-medium text-slate-600">Exposure: {selectedRoute.predictedExposure}</span>
                   </div>
                 </div>
                 {sheetState === "collapsed" && (
@@ -846,6 +847,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
                       <span className="flex items-center gap-1">
                         <Wind className="h-3 w-3" /> AQI {c.avgAqi} · {c.avgPm25} µg/m³
                       </span>
+                      <span className="font-medium text-slate-600">Exposure: {c.predictedExposure}</span>
                     </div>
                   </div>
                 </button>

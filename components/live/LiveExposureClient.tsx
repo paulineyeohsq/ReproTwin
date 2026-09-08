@@ -440,7 +440,7 @@ export function LiveExposureClient() {
       </div>
 
       <Card>
-        <CardHeader title="Plan a route" subtitle="Real road-following routes via OpenStreetMap/OSRM" />
+        <CardHeader title="Plan a route" subtitle="Real motorcycle-mode routing (TomTom) when configured, OpenStreetMap/OSRM otherwise" />
         <CardBody className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

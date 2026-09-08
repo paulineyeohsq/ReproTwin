@@ -26,7 +26,8 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000). Try the home page: pick
 a destination (free-text search anywhere in Malaysia, or one of the 10
 popular-destination chips spanning multiple Peninsular states), compare
-Fastest/Balanced/Low-exposure routes (real OpenStreetMap roads via OSRM),
+Fastest/Balanced/Low-exposure routes (real motorcycle-mode routing via
+TomTom when configured, else real OpenStreetMap roads via OSRM),
 start a ride, and (if you grant location permission) your actual GPS
 trajectory is drawn and recorded.
 
@@ -57,7 +58,7 @@ trajectory is drawn and recorded.
 
 | Layer | Status |
 |---|---|
-| Road network & routing | **Real** — OpenStreetMap via OSRM's public demo instance (`lib/routingEngine.ts`), no API key. Falls back to a hand-authored demo road network only if OSRM is unreachable. |
+| Road network & routing | **Real** — TomTom Routing API with `travelMode=motorcycle` when `TOMTOM_API_KEY` is configured (real motorcycle-aware routing, not a car route relabelled); falls back to OpenStreetMap via OSRM's public demo instance (car-profile approximation, no API key) when TomTom isn't configured or a request fails (`lib/routingEngine.ts`). Falls back to a hand-authored demo road network only if both are unreachable. |
 | Geocoding | **Real** — OpenStreetMap Nominatim, no API key (`lib/geocode.ts`). |
 | Device GPS | **Real** — `navigator.geolocation.watchPosition()`, only after "Start Ride"; never fabricated. |
 | Environmental data | Three explicit modes — see "Environmental data investigation" below. Never mixes a real and a synthetic value without labelling which is which. |

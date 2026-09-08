@@ -8,6 +8,7 @@ import { isLiveEnvironmentConfigured } from "@/lib/liveEnvironment";
 import { isPurpleAirConfigured } from "@/lib/livePurpleAir";
 import { isOpenAqConfigured } from "@/lib/liveOpenAQ";
 import { isTrafficConfigured } from "@/lib/liveTraffic";
+import { isMotorcycleRoutingConfigured } from "@/lib/routingEngine";
 import { isOpenDosmReachable } from "@/lib/historicalOpenDosm";
 import { getCollectionStatus } from "@/lib/historicalCollector";
 import { CheckCircle2, XCircle, Info } from "lucide-react";
@@ -73,7 +74,13 @@ export default async function SystemStatusPage() {
         <CardBody>
           {statusRow("Mobility data source", true, provenance.mobilitySource)}
           {statusRow("Physiological data source", true, provenance.physiologySource)}
-          {statusRow("Routing engine", true, "OpenStreetMap road network via OSRM (public demo instance)")}
+          {statusRow(
+            "Routing engine",
+            true,
+            isMotorcycleRoutingConfigured()
+              ? "TomTom Routing API — real motorcycle travel mode, with OpenStreetMap/OSRM (public demo instance) as fallback"
+              : "OpenStreetMap road network via OSRM (public demo instance) — car-profile approximation; configure TOMTOM_API_KEY for real motorcycle-mode routing"
+          )}
           {statusRow("Geocoding", true, "OpenStreetMap Nominatim (public instance)")}
         </CardBody>
       </Card>

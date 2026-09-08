@@ -13,7 +13,12 @@ import { ADVISOR_HOUR, PREFERENCE_WEIGHTS } from "./routeScoring";
 export { ADVISOR_HOUR, PREFERENCE_WEIGHTS, scoreRoutes, type PreferenceKey } from "./routeScoring";
 
 export const PROCEDURAL_ROAD_SOURCE = "Prototype road network (routing service unavailable — demonstration fallback)";
-export const OSRM_ROAD_SOURCE = "OpenStreetMap road network via OSRM";
+export const OSRM_ROAD_SOURCE = "OpenStreetMap road network via OSRM (car-profile approximation — no motorcycle profile on the public demo instance)";
+export const TOMTOM_MOTORCYCLE_ROAD_SOURCE = "TomTom Routing API — real motorcycle travel mode";
+
+function roadNetworkSourceFor(route: OsrmRouteResult): string {
+  return route.source === "tomtom-motorcycle" ? TOMTOM_MOTORCYCLE_ROAD_SOURCE : OSRM_ROAD_SOURCE;
+}
 
 const PROFILE_CONFIG: Record<
   RouteProfile,
@@ -183,7 +188,7 @@ function osrmRouteToCandidate(
       distanceKm: s.stationDistanceKm,
       trafficSource: s.trafficSource,
     })),
-    roadNetworkSource: OSRM_ROAD_SOURCE,
+    roadNetworkSource: roadNetworkSourceFor(route),
     environmentalMode: exposure.environmentalMode,
     trafficMode: exposure.trafficMode,
     avgTrafficRatio,
@@ -235,10 +240,16 @@ export async function getCandidateRoutesAsync(
 
     // OSRM's public "driving" profile has no live congestion awareness at
     // all — it returns a static, roughly free-flow duration. Where live
-    // traffic samples exist for a route, its travel time (and therefore
-    // its ranking as Fastest/Balanced) is adjusted toward real current
-    // conditions rather than left at that static estimate.
+    // traffic samples exist for one of those routes, its travel time (and
+    // therefore its ranking as Fastest/Balanced) is adjusted toward real
+    // current conditions rather than left at that static estimate. A
+    // TomTom motorcycle-mode route is requested with traffic=true and
+    // already reflects real current congestion in its own duration —
+    // applying this same Flow Segment Data ratio on top of it would
+    // double-count traffic, so those routes are left as TomTom returned
+    // them.
     const adjustedRoutes = rawRoutes.map((route, i) => {
+      if (route.source === "tomtom-motorcycle") return route;
       const ratio = averageTrafficRatio(trafficByRoute[i]);
       return ratio ? { ...route, durationMin: route.durationMin / ratio } : route;
     });

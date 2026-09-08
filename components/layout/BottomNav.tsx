@@ -26,10 +26,11 @@ const ITEMS = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-// Everything reachable from NavBar's desktop nav (plus the Footer's data/
-// privacy links) that doesn't fit as its own bottom-tab slot — surfaced
-// through the "More" panel below instead, so no page is unreachable on
-// mobile even though only 4 destinations fit as dedicated tabs.
+// Everything reachable from NavBar's desktop nav that doesn't fit as its
+// own bottom-tab slot, plus Data sources/Privacy (not linked from NavBar
+// at all) — surfaced through the "More" panel below instead, so no page
+// is unreachable on mobile even though only 4 destinations fit as
+// dedicated tabs.
 const MORE_ITEMS = [
   { href: "/air-quality", label: "Air Quality", icon: Wind, description: "Nationwide live station map" },
   { href: "/traffic-data", label: "Traffic Data", icon: Activity, description: "Live per-road congestion map" },
@@ -42,10 +43,11 @@ const MORE_ITEMS = [
 // Mobile-only bottom tab bar (hidden on desktop, where NavBar's top nav
 // covers navigation instead). Fixed to the viewport bottom with safe-area
 // padding for the iOS home indicator / Android gesture bar. Only the four
-// most essential destinations get a dedicated tab; every other page NavBar
-// links to on desktop (plus Footer's Data sources/Privacy, which is itself
-// desktop-only) is reachable via the 5th "More" tab's panel, so nothing
-// available on desktop is unreachable on mobile.
+// most essential destinations get a dedicated tab; every other page (plus
+// Data sources/Privacy, not in NavBar at all) is reachable via the 5th
+// "More" tab's panel — note this is currently the *only* nav UI that
+// surfaces Data sources/Privacy at all, since it's mobile-only and no
+// desktop element links to them (still reachable by direct URL).
 export function BottomNav() {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);

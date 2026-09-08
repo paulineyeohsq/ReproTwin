@@ -3,9 +3,6 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { NavBar } from "./NavBar";
 import { BottomNav } from "./BottomNav";
-import { Footer } from "./Footer";
-import { DemoBanner } from "@/components/ui/DemoBanner";
-import type { DataMode, RealDataSummary } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
 interface ImmersiveContextValue {
@@ -26,20 +23,11 @@ export function useImmersive() {
   return useContext(ImmersiveContext);
 }
 
-export function AppShell({
-  children,
-  mode,
-  realSummary,
-}: {
-  children: ReactNode;
-  mode: DataMode;
-  realSummary: RealDataSummary | null;
-}) {
+export function AppShell({ children }: { children: ReactNode }) {
   const [immersive, setImmersive] = useState(false);
 
   return (
     <ImmersiveContext.Provider value={{ immersive, setImmersive }}>
-      {!immersive && <DemoBanner mode={mode} realSummary={realSummary} />}
       {!immersive && <NavBar />}
       <main
         className={cn(
@@ -50,7 +38,6 @@ export function AppShell({
         {children}
       </main>
       {!immersive && <BottomNav />}
-      {!immersive && <Footer />}
     </ImmersiveContext.Provider>
   );
 }

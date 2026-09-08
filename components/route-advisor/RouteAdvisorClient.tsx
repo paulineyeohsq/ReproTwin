@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -10,7 +10,7 @@ import { ExposureProvenance } from "@/components/ui/ExposureProvenance";
 import { LeafletMap } from "@/components/map/LeafletMap";
 import type { MapPolyline } from "@/components/map/LeafletMapInner";
 import { POPULAR_DESTINATIONS, MAP_CENTER } from "@/lib/constants";
-import { scoreRoutes, ADVISOR_HOUR, PREFERENCE_WEIGHTS, type PreferenceKey } from "@/lib/routeScoring";
+import { ADVISOR_HOUR } from "@/lib/routeScoring";
 import { cn } from "@/lib/cn";
 import { Sparkles, Clock, Wind, Route as RouteIcon, Map as MapIcon, Search, Locate, Loader2, MapPin } from "lucide-react";
 import type { RouteProfile, CandidateRoute } from "@/lib/types";
@@ -26,8 +26,6 @@ const EXPOSURE_LEVEL_HEX: Record<string, string> = {
   Moderate: "#d97706",
   High: "#e11d48",
 };
-
-const PREFERENCES: PreferenceKey[] = ["fastest", "balanced", "lowest_exposure"];
 
 interface Place {
   label: string;
@@ -111,18 +109,8 @@ export function RouteAdvisorClient({
   const [destResults, setDestResults] = useState<Place[]>([]);
   const [destSearching, setDestSearching] = useState(false);
 
-  const [preference, setPreference] = useState<PreferenceKey>("balanced");
   const [selectedProfile, setSelectedProfile] = useState<RouteProfile | null>(null);
   const [showExposureColouring, setShowExposureColouring] = useState(true);
-
-  // A manually-clicked candidate row must not stay pinned to the map/right
-  // panel once the user picks a different preference — otherwise the new
-  // recommendation is computed correctly but nothing visible changes,
-  // which reads as "the preference selector doesn't do anything."
-  function selectPreference(p: PreferenceKey) {
-    setPreference(p);
-    setSelectedProfile(null);
-  }
 
   async function fetchRoutes(nextOrigin: Place, nextDestination: Place) {
     setLoading(true);
@@ -227,12 +215,14 @@ export function RouteAdvisorClient({
     );
   }
 
-  const ranked = useMemo(
-    () => (candidates.length ? scoreRoutes(candidates, preference) : []),
-    [candidates, preference]
-  );
-  const recommended = ranked[0]?.route;
+  // The recommendation always follows measured pollution exposure — it
+  // never changes as the rider previews other candidates below, since it's
+  // the app's core exposure-aware pick, not a moving target tied to
+  // whichever route is currently highlighted on the map.
+  const recommended = candidates.find((c) => c.profile === "low_exposure") ?? candidates[0];
   const fastest = candidates.find((c) => c.profile === "fastest");
+  // Previewing a candidate (button or table row) only changes which route
+  // is highlighted on the map/table — it never moves the Recommended badge.
   const activeProfile = selectedProfile ?? recommended?.profile;
 
   const exposureDelta =
@@ -249,8 +239,9 @@ export function RouteAdvisorClient({
             Motorcycle Route Advisor
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Compare candidate motorcycle routes between any two points in Malaysia, scored on a balance
-            of travel time and real, measured pollution exposure — not simply the shortest route.
+            Compare candidate motorcycle routes between any two points in Malaysia. The recommended route
+            always has the lowest real, measured pollution exposure — preview the Fastest or Balanced
+            alternatives on the map without changing that recommendation.
           </p>
         </div>
         {recommended && (
@@ -359,38 +350,43 @@ export function RouteAdvisorClient({
             </div>
           </div>
 
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Route preference
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {PREFERENCES.map((p) => (
-                <button
-                  key={p}
-                  onClick={() => selectPreference(p)}
-                  className={cn(
-                    "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
-                    preference === p
-                      ? "border-[var(--brand)] bg-[var(--brand)]/10 text-[var(--brand-dark)]"
-                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                  )}
-                >
-                  {PREFERENCE_WEIGHTS[p].label}
-                  <span className="ml-1 text-[10px] text-slate-400">
-                    ({Math.round(PREFERENCE_WEIGHTS[p].exposure * 100)}% exposure /{" "}
-                    {Math.round(PREFERENCE_WEIGHTS[p].time * 100)}% time)
-                  </span>
-                </button>
-              ))}
-            </div>
-            {!loading && candidates.length > 0 && candidates.length < 3 && (
-              <p className="mt-2 text-xs text-amber-600">
-                Only {candidates.length} genuinely distinct real road route{candidates.length > 1 ? "s" : ""}{" "}
-                found between these two points, so a separate &quot;Balanced&quot; option isn&apos;t shown for
-                this trip.
+          {candidates.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Preview a route
               </p>
-            )}
-          </div>
+              <div className="flex flex-wrap gap-2">
+                {candidates.map((c) => (
+                  <button
+                    key={c.profile}
+                    onClick={() => setSelectedProfile(c.profile)}
+                    className={cn(
+                      "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                      activeProfile === c.profile
+                        ? "border-[var(--brand)] bg-[var(--brand)]/10 text-[var(--brand-dark)]"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    {c.label}
+                    {c.profile === "low_exposure" && (
+                      <span className="ml-1 text-[10px] text-emerald-600">— Recommended</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                Previewing a route only changes the map/table highlight — the Recommended pick always
+                follows the lowest measured exposure, not which route you're viewing.
+              </p>
+              {!loading && candidates.length < 3 && (
+                <p className="mt-1 text-xs text-amber-600">
+                  Only {candidates.length} genuinely distinct real road route{candidates.length > 1 ? "s" : ""}{" "}
+                  found between these two points, so a separate &quot;Balanced&quot; option isn&apos;t shown for
+                  this trip.
+                </p>
+              )}
+            </div>
+          )}
         </CardBody>
       </Card>
 
@@ -471,7 +467,7 @@ export function RouteAdvisorClient({
             <Card>
               <CardHeader
                 title="Recommended Route"
-                subtitle={PREFERENCE_WEIGHTS[preference].label + " preference · modelled estimate"}
+                subtitle="Lowest measured exposure · modelled estimate"
               />
               <CardBody className="space-y-3">
                 <Badge className="border-[var(--brand)]/30 bg-[var(--brand)]/10 text-[var(--brand-dark)]">
@@ -508,11 +504,13 @@ export function RouteAdvisorClient({
                   </div>
                 </div>
                 <p className="text-sm text-slate-600">
-                  {exposureDelta > 0
-                    ? `${recommended.label} route is recommended because it provides substantially lower predicted pollution exposure with only ${
-                        timeDelta <= 0 ? "no increase" : `a ${timeDelta}-minute increase`
-                      } in travel time.`
-                    : `${recommended.label} route is recommended for this preference.`}
+                  {recommended.label} is recommended because it has the lowest measured pollution exposure
+                  of the route{candidates.length > 1 ? "s" : ""} found for this trip
+                  {timeDelta > 0
+                    ? `, at a cost of ${timeDelta} extra minute${timeDelta === 1 ? "" : "s"} versus the fastest route.`
+                    : timeDelta < 0
+                    ? ", while also being faster than the other route options."
+                    : ", while matching the fastest route's travel time."}
                 </p>
                 <p className="text-xs text-slate-400">
                   Modelled estimate — predicted exposure reduction, not a health

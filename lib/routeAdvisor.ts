@@ -185,6 +185,10 @@ function osrmRouteToCandidate(
 // app never mixes a real route with a fabricated one in the same
 // comparison, and never simply breaks when the public routing service is
 // unavailable.
+//
+// Returns 2 routes instead of 3 when no real alternative beats Fastest or
+// Low-exposure on either axis — i.e. Balanced is omitted rather than shown
+// as a strictly-worse-or-identical "option" (see balancedIsDistinct below).
 export async function getCandidateRoutesAsync(
   origin: LatLng,
   destination: LatLng,
@@ -264,11 +268,26 @@ export async function getCandidateRoutesAsync(
     const balancedCandidates = remaining.length > 0 ? remaining : scored;
     const balancedPick = balancedCandidates.reduce((best, s) => (balancedScore(s) < balancedScore(best) ? s : best));
 
+    // Only show "Balanced" as a third option when it's a genuinely
+    // different, non-dominated route — never a route that's the same as
+    // (or worse than) Fastest/Low-exposure on both time and exposure, since
+    // that isn't a "balance" of anything and would just be noise in the
+    // candidate table (verified against real trips: a real detour can
+    // legitimately fail to beat either extreme on any axis).
+    const balancedIsDistinct = [fastestPick, lowExposurePick].every(
+      (other) =>
+        balancedPick !== other &&
+        !(balancedPick.route.durationMin === other.route.durationMin && balancedPick.exposure.totalExposure === other.exposure.totalExposure) &&
+        !(other.route.durationMin <= balancedPick.route.durationMin && other.exposure.totalExposure <= balancedPick.exposure.totalExposure)
+    );
+
     return {
       usedRealRoads: true,
       routes: [
         osrmRouteToCandidate(destinationLabel, "fastest", fastestPick.route, fastestPick.exposure, `${idBase}-fastest`, fastestPick.avgTrafficRatio),
-        osrmRouteToCandidate(destinationLabel, "balanced", balancedPick.route, balancedPick.exposure, `${idBase}-balanced`, balancedPick.avgTrafficRatio),
+        ...(balancedIsDistinct
+          ? [osrmRouteToCandidate(destinationLabel, "balanced", balancedPick.route, balancedPick.exposure, `${idBase}-balanced`, balancedPick.avgTrafficRatio)]
+          : []),
         osrmRouteToCandidate(destinationLabel, "low_exposure", lowExposurePick.route, lowExposurePick.exposure, `${idBase}-low-exposure`, lowExposurePick.avgTrafficRatio),
       ],
     };

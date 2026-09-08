@@ -115,6 +115,15 @@ export function RouteAdvisorClient({
   const [selectedProfile, setSelectedProfile] = useState<RouteProfile | null>(null);
   const [showExposureColouring, setShowExposureColouring] = useState(true);
 
+  // A manually-clicked candidate row must not stay pinned to the map/right
+  // panel once the user picks a different preference — otherwise the new
+  // recommendation is computed correctly but nothing visible changes,
+  // which reads as "the preference selector doesn't do anything."
+  function selectPreference(p: PreferenceKey) {
+    setPreference(p);
+    setSelectedProfile(null);
+  }
+
   async function fetchRoutes(nextOrigin: Place, nextDestination: Place) {
     setLoading(true);
     setFetchError(null);
@@ -358,7 +367,7 @@ export function RouteAdvisorClient({
               {PREFERENCES.map((p) => (
                 <button
                   key={p}
-                  onClick={() => setPreference(p)}
+                  onClick={() => selectPreference(p)}
                   className={cn(
                     "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
                     preference === p
@@ -374,6 +383,13 @@ export function RouteAdvisorClient({
                 </button>
               ))}
             </div>
+            {!loading && candidates.length > 0 && candidates.length < 3 && (
+              <p className="mt-2 text-xs text-amber-600">
+                Only {candidates.length} genuinely distinct route{candidates.length > 1 ? "s" : ""} found for
+                this trip — every other real-road alternative was slower AND more polluted, so it isn&apos;t
+                shown as a separate option.
+              </p>
+            )}
           </div>
         </CardBody>
       </Card>

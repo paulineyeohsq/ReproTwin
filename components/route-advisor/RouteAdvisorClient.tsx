@@ -385,9 +385,9 @@ export function RouteAdvisorClient({
             </div>
             {!loading && candidates.length > 0 && candidates.length < 3 && (
               <p className="mt-2 text-xs text-amber-600">
-                Only {candidates.length} genuinely distinct route{candidates.length > 1 ? "s" : ""} found for
-                this trip — every other real-road alternative was slower AND more polluted, so it isn&apos;t
-                shown as a separate option.
+                Only {candidates.length} genuinely distinct real road route{candidates.length > 1 ? "s" : ""}{" "}
+                found between these two points, so a separate &quot;Balanced&quot; option isn&apos;t shown for
+                this trip.
               </p>
             )}
           </div>

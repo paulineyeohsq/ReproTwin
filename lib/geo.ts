@@ -1,5 +1,10 @@
 import type { RoadType, RouteWaypointDef } from "./types";
 
+export interface LatLngLike {
+  lat: number;
+  lng: number;
+}
+
 export function haversineKm(
   a: { lat: number; lng: number },
   b: { lat: number; lng: number }
@@ -73,4 +78,56 @@ export function resampleRoute(
     });
   }
   return out;
+}
+
+// Resamples a raw lat/lng polyline (no road-type metadata, unlike
+// ResampledPoint above) into `count` evenly-spaced points along its length
+// — used to compare two routes' shapes point-for-point regardless of how
+// many raw coordinates each one has.
+export function resamplePolyline(coords: LatLngLike[], count: number): LatLngLike[] {
+  if (coords.length === 0) return [];
+  if (coords.length === 1 || count <= 1) return [coords[0]];
+
+  const segLengths: number[] = [];
+  let total = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const d = haversineKm(coords[i - 1], coords[i]);
+    segLengths.push(d);
+    total += d;
+  }
+
+  const out: LatLngLike[] = [];
+  for (let i = 0; i < count; i++) {
+    const targetDist = (total * i) / (count - 1);
+    let acc = 0;
+    let segIdx = 0;
+    while (segIdx < segLengths.length - 1 && acc + segLengths[segIdx] < targetDist) {
+      acc += segLengths[segIdx];
+      segIdx++;
+    }
+    const segStart = coords[segIdx];
+    const segEnd = coords[segIdx + 1] ?? coords[segIdx];
+    const segLen = segLengths[segIdx] || 1e-6;
+    const frac = Math.min(1, Math.max(0, (targetDist - acc) / segLen));
+    out.push({
+      lat: segStart.lat + (segEnd.lat - segStart.lat) * frac,
+      lng: segStart.lng + (segEnd.lng - segStart.lng) * frac,
+    });
+  }
+  return out;
+}
+
+// The largest point-for-point gap between two routes' shapes, sampled at
+// evenly-spaced fractions of each route's own length — used to tell a
+// genuinely different real road path apart from a via-point detour that
+// simply rejoins the same road almost immediately (which would otherwise
+// look like a "different" route while being ~identical in practice).
+export function maxSeparationKm(a: LatLngLike[], b: LatLngLike[], samples = 12): number {
+  const ra = resamplePolyline(a, samples);
+  const rb = resamplePolyline(b, samples);
+  let max = 0;
+  for (let i = 0; i < Math.min(ra.length, rb.length); i++) {
+    max = Math.max(max, haversineKm(ra[i], rb[i]));
+  }
+  return max;
 }

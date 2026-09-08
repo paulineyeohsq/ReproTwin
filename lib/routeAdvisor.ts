@@ -186,9 +186,13 @@ function osrmRouteToCandidate(
 // comparison, and never simply breaks when the public routing service is
 // unavailable.
 //
-// Returns 2 routes instead of 3 when no real alternative beats Fastest or
-// Low-exposure on either axis — i.e. Balanced is omitted rather than shown
-// as a strictly-worse-or-identical "option" (see balancedIsDistinct below).
+// Targets 3 labelled routes (Fastest/Balanced/Low-exposure) drawn from a
+// real candidate pool of 3-5 distinct routes (see fetchDiverseRoadRoutes).
+// Returns only 2 when the real road network genuinely doesn't offer a
+// third distinct path for this trip — Balanced is never a route that's
+// literally identical to Fastest or Low-exposure (see balancedIsDistinct
+// below), but is shown even when it doesn't beat either on time or
+// exposure, since it's still real, different data about an actual road.
 export async function getCandidateRoutesAsync(
   origin: LatLng,
   destination: LatLng,
@@ -268,18 +272,15 @@ export async function getCandidateRoutesAsync(
     const balancedCandidates = remaining.length > 0 ? remaining : scored;
     const balancedPick = balancedCandidates.reduce((best, s) => (balancedScore(s) < balancedScore(best) ? s : best));
 
-    // Only show "Balanced" as a third option when it's a genuinely
-    // different, non-dominated route — never a route that's the same as
-    // (or worse than) Fastest/Low-exposure on both time and exposure, since
-    // that isn't a "balance" of anything and would just be noise in the
-    // candidate table (verified against real trips: a real detour can
-    // legitimately fail to beat either extreme on any axis).
-    const balancedIsDistinct = [fastestPick, lowExposurePick].every(
-      (other) =>
-        balancedPick !== other &&
-        !(balancedPick.route.durationMin === other.route.durationMin && balancedPick.exposure.totalExposure === other.exposure.totalExposure) &&
-        !(other.route.durationMin <= balancedPick.route.durationMin && other.exposure.totalExposure <= balancedPick.exposure.totalExposure)
-    );
+    // Show "Balanced" whenever a genuinely separate real route was found
+    // (fetchDiverseRoadRoutes already only returns geometrically distinct
+    // paths — see maxSeparationKm — so any route here that isn't literally
+    // the Fastest/Low-exposure pick itself is real, different data worth
+    // showing, even on a trip where it doesn't happen to beat either
+    // extreme on time or exposure). Only reused when the real pool had
+    // just 2 distinct routes total (remaining was empty above), in which
+    // case there is no third option to label.
+    const balancedIsDistinct = balancedPick !== fastestPick && balancedPick !== lowExposurePick;
 
     return {
       usedRealRoads: true,

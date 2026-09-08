@@ -41,6 +41,18 @@ interface RouteFetchResponse {
 // Exposure level shown per candidate, relative to the other routes offered
 // for this trip (rather than an absolute threshold) — mirrors how a rider
 // would read "High / Medium / Low" across a short route comparison.
+function formatHourLabel(hour: number): string {
+  const period = hour < 12 ? "AM" : "PM";
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h12}:00 ${period}`;
+}
+
+function peakLabel(hour: number): string {
+  if (hour >= 7 && hour <= 9) return "typical morning traffic peak";
+  if (hour >= 17 && hour <= 20) return "typical evening traffic peak";
+  return "typical off-peak conditions";
+}
+
 function relativeExposureLabel(
   candidates: { predictedExposure: number }[],
   value: number
@@ -111,8 +123,9 @@ export function RouteAdvisorClient({
 
   const [selectedProfile, setSelectedProfile] = useState<RouteProfile | null>(null);
   const [showExposureColouring, setShowExposureColouring] = useState(true);
+  const [hour, setHour] = useState<number>(ADVISOR_HOUR);
 
-  async function fetchRoutes(nextOrigin: Place, nextDestination: Place) {
+  async function fetchRoutes(nextOrigin: Place, nextDestination: Place, nextHour: number = hour) {
     setLoading(true);
     setFetchError(null);
     setSelectedProfile(null);
@@ -126,6 +139,7 @@ export function RouteAdvisorClient({
           destLat: nextDestination.lat,
           destLng: nextDestination.lng,
           destLabel: nextDestination.label,
+          hour: nextHour,
         }),
       });
       const data: RouteFetchResponse = await res.json();
@@ -192,6 +206,11 @@ export function RouteAdvisorClient({
     setDestQuery("");
     setDestResults([]);
     fetchRoutes(origin, place);
+  }
+
+  function handleHourChange(nextHour: number) {
+    setHour(nextHour);
+    fetchRoutes(origin, destination, nextHour);
   }
 
   function useMyLocation() {
@@ -408,7 +427,25 @@ export function RouteAdvisorClient({
             <Card className="lg:col-span-2">
               <CardHeader
                 title={`${origin.label} → ${destination.label}`}
-                subtitle={`Simulated for ${ADVISOR_HOUR}:00 (typical evening traffic peak)`}
+                subtitle={
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span>Simulated for</span>
+                    <select
+                      value={hour}
+                      onChange={(e) => handleHourChange(Number(e.target.value))}
+                      disabled={loading}
+                      aria-label="Time of day to simulate"
+                      className="rounded-md border border-slate-200 bg-[var(--card)] px-1.5 py-0.5 text-xs font-medium text-slate-700 disabled:opacity-50"
+                    >
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <option key={h} value={h}>
+                          {formatHourLabel(h)}
+                        </option>
+                      ))}
+                    </select>
+                    <span>({peakLabel(hour)})</span>
+                  </span>
+                }
                 action={
                   <button
                     onClick={() => setShowExposureColouring((v) => !v)}

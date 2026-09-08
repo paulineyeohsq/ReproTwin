@@ -112,7 +112,36 @@ export default function TripDetailsPage() {
 
       <Card>
         <CardHeader title="Route comparison" subtitle="Offered at ride start" />
-        <CardBody className="overflow-x-auto">
+        {/* Mobile: stacked cards instead of a 4-column table, which wraps
+            awkwardly at phone widths. Desktop/tablet: the table below. */}
+        <CardBody className="space-y-2 sm:hidden">
+          {trip.routeComparison.map((c) => (
+            <div
+              key={c.id}
+              className={cn(
+                "rounded-lg border px-3 py-2.5 text-sm",
+                c.profile === trip.selectedProfile ? "border-[var(--brand)] bg-[var(--brand)]/5" : "border-slate-200"
+              )}
+            >
+              <div className="font-medium text-slate-800">
+                {c.label}
+                {c.profile === trip.selectedProfile && " (selected)"}
+              </div>
+              <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
+                <span>{c.travelTimeMin} min</span>
+                <span>{c.distanceKm} km</span>
+                <span>Exposure: {c.predictedExposure}</span>
+              </div>
+            </div>
+          ))}
+          {fastest && (
+            <p className="pt-1 text-xs text-slate-500">
+              Exposure reduction vs fastest route:{" "}
+              <span className="font-semibold text-emerald-700">{reductionPct}%</span>
+            </p>
+          )}
+        </CardBody>
+        <CardBody className="hidden overflow-x-auto sm:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">

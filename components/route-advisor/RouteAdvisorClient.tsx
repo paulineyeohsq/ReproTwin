@@ -549,7 +549,49 @@ export function RouteAdvisorClient({
 
           <Card>
             <CardHeader title="Candidate routes" />
-            <CardBody className="overflow-x-auto">
+            {/* Mobile: stacked cards, no table — a 6-column table forces
+                horizontal scroll and cramped text-wrapping at phone widths.
+                Desktop/tablet: the full table below. */}
+            <CardBody className="space-y-2 p-3 sm:hidden">
+              {candidates.map((c) => {
+                const isRecommended = c.profile === recommended.profile;
+                const level = relativeExposureLabel(candidates, c.predictedExposure);
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelectedProfile(c.profile)}
+                    className={cn(
+                      "flex w-full min-h-[44px] flex-col gap-1.5 rounded-xl border-2 px-4 py-3 text-left transition-colors",
+                      activeProfile === c.profile ? "border-[var(--brand)] bg-[var(--brand)]/5" : "border-slate-200"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ background: PROFILE_COLORS[c.profile] }}
+                        />
+                        {c.label}
+                      </span>
+                      {isRecommended && (
+                        <Badge className="shrink-0 border-[var(--brand)]/30 bg-[var(--brand)]/10 text-[var(--brand-dark)]">
+                          Recommended
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-500">
+                      <span>{c.travelTimeMin} min</span>
+                      <span>{c.distanceKm} km</span>
+                      <span>
+                        {level} <span className="text-slate-400">({c.predictedExposure})</span>
+                      </span>
+                      <span>{c.avgPm25} µg/m³</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </CardBody>
+            <CardBody className="hidden overflow-x-auto sm:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">

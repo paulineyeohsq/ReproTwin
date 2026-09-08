@@ -19,15 +19,19 @@ export const revalidate = 300;
 
 function statusRow(label: string, ok: boolean | null, detail: string) {
   return (
-    <div className="flex items-center justify-between border-b border-slate-100 py-2 text-sm last:border-0">
+    <div className="flex flex-col gap-0.5 border-b border-slate-100 py-2 text-sm last:border-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <span className="text-slate-600">{label}</span>
       <span
         className={cn(
-          "flex items-center gap-1.5 font-medium",
+          "flex items-start gap-1.5 font-medium sm:items-center sm:text-right",
           ok === null ? "text-slate-400" : ok ? "text-emerald-600" : "text-rose-600"
         )}
       >
-        {ok === null ? null : ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+        {ok === null ? null : ok ? (
+          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 sm:mt-0" />
+        ) : (
+          <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 sm:mt-0" />
+        )}
         {detail}
       </span>
     </div>

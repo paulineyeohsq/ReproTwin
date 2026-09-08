@@ -30,7 +30,7 @@ export function CardHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 border-b border-[var(--card-border)] px-5 py-4">
+    <div className="flex flex-col items-start gap-2 border-b border-[var(--card-border)] px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
       <div>
         <h3 className="text-sm font-semibold tracking-tight text-slate-900">
           {title}

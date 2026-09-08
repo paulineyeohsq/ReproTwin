@@ -48,7 +48,7 @@ export default function SettingsPage() {
       {SECTIONS.map((section) => (
         <div key={section.title}>
           <p className="mb-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{section.title}</p>
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-[var(--card)]">
             {section.rows.map((row, i) => {
               const Icon = row.icon;
               const content = (

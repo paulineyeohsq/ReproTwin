@@ -71,7 +71,7 @@ export function BottomNav() {
 
       {moreOpen && (
         <div
-          className="safe-bottom fixed inset-x-0 bottom-[64px] z-40 mx-auto w-full max-w-md rounded-t-2xl border-t border-x border-[var(--card-border)] bg-white shadow-[0_-8px_30px_rgba(15,23,42,0.15)] lg:hidden"
+          className="safe-bottom fixed inset-x-0 bottom-[64px] z-40 mx-auto w-full max-w-md rounded-t-2xl border-t border-x border-[var(--card-border)] bg-[var(--card)] shadow-[0_-8px_30px_rgba(28,24,21,0.15)] lg:hidden"
           role="dialog"
           aria-label="More pages"
         >
@@ -113,7 +113,7 @@ export function BottomNav() {
       )}
 
       <nav
-        className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-[var(--card-border)] bg-white/95 backdrop-blur lg:hidden"
+        className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-[var(--card-border)] bg-[var(--card)]/95 backdrop-blur lg:hidden"
         aria-label="Primary"
       >
         <div className="mx-auto flex max-w-md items-stretch justify-around">

@@ -16,15 +16,15 @@ import { Sparkles, Clock, Wind, Route as RouteIcon, Map as MapIcon, Search, Loca
 import type { RouteProfile, CandidateRoute } from "@/lib/types";
 
 const PROFILE_COLORS: Record<RouteProfile, string> = {
-  fastest: "#64748b",
-  balanced: "#2563eb",
-  low_exposure: "#0e6e63",
+  fastest: "#8c8074",
+  balanced: "#8a6d3b",
+  low_exposure: "#4a6b53",
 };
 
 const EXPOSURE_LEVEL_HEX: Record<string, string> = {
-  Low: "#059669",
-  Moderate: "#d97706",
-  High: "#e11d48",
+  Low: "#4a6b53",
+  Moderate: "#c28b38",
+  High: "#a84338",
 };
 
 interface Place {
@@ -283,7 +283,7 @@ export function RouteAdvisorClient({
                 </button>
               </div>
               {originResults.length > 0 && (
-                <div className="mt-2 max-h-40 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                <div className="mt-2 max-h-40 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-[var(--card)]">
                   {originResults.map((r) => (
                     <button
                       key={`${r.lat}-${r.lng}`}
@@ -318,7 +318,7 @@ export function RouteAdvisorClient({
                 Current: <span className="font-medium text-slate-700">{destination.label}</span>
               </div>
               {destResults.length > 0 ? (
-                <div className="mt-2 max-h-40 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                <div className="mt-2 max-h-40 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-[var(--card)]">
                   {destResults.map((r) => (
                     <button
                       key={`${r.lat}-${r.lng}`}
@@ -391,7 +391,7 @@ export function RouteAdvisorClient({
       </Card>
 
       {loading && (
-        <div className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-10 text-sm text-slate-500">
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-[var(--card)] py-10 text-sm text-slate-500">
           <Loader2 className="h-4 w-4 animate-spin" /> Finding routes…
         </div>
       )}

@@ -57,9 +57,9 @@ interface RouteFetchResponse {
 }
 
 const PROFILE_COLORS: Record<RouteProfile, string> = {
-  fastest: "#64748b",
-  balanced: "#2563eb",
-  low_exposure: "#0e6e63",
+  fastest: "#8c8074",
+  balanced: "#8a6d3b",
+  low_exposure: "#4a6b53",
 };
 
 const PROFILE_META: Record<RouteProfile, { icon: typeof Zap; label: string }> = {
@@ -68,8 +68,10 @@ const PROFILE_META: Record<RouteProfile, { icon: typeof Zap; label: string }> = 
   low_exposure: { icon: Leaf, label: "Low exposure" },
 };
 
-const MUTED_ROUTE_COLOR = "#94a3b8";
-const SELECTED_ROUTE_COLOR = "#0e6e63";
+const MUTED_ROUTE_COLOR = "#b3a79a";
+// The selected/highlighted route is the app's key interactive highlight —
+// the palette reserves its Terracotta accent specifically for this role.
+const SELECTED_ROUTE_COLOR = "#b85b35";
 
 async function fetchEnvironmentReading(lat: number, lng: number): Promise<EnvironmentalReading> {
   const res = await fetch(`/api/environment?lat=${lat}&lng=${lng}`);
@@ -416,8 +418,8 @@ export function LiveExposureClient() {
   const markers =
     destination
       ? [
-          { id: "origin", lat: origin.lat, lng: origin.lng, color: "#0e6e63", radius: 9 },
-          { id: "destination", lat: destination.lat, lng: destination.lng, color: "#334155", radius: 9 },
+          { id: "origin", lat: origin.lat, lng: origin.lng, color: "#2c1e16", radius: 9 },
+          { id: "destination", lat: destination.lat, lng: destination.lng, color: "#3a322c", radius: 9 },
         ]
       : [];
 
@@ -467,7 +469,7 @@ export function LiveExposureClient() {
                 Current: <span className="font-medium text-slate-700">{origin.label}</span>
               </div>
               {originResults.length > 0 && (
-                <div className="mt-2 max-h-40 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                <div className="mt-2 max-h-40 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-[var(--card)]">
                   {originResults.map((r) => (
                     <button
                       key={`${r.lat}-${r.lng}`}
@@ -502,7 +504,7 @@ export function LiveExposureClient() {
                 Current: <span className="font-medium text-slate-700">{destination?.label ?? "Not set"}</span>
               </div>
               {destResults.length > 0 ? (
-                <div className="mt-2 max-h-40 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                <div className="mt-2 max-h-40 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-[var(--card)]">
                   {destResults.map((r) => (
                     <button
                       key={`${r.lat}-${r.lng}`}

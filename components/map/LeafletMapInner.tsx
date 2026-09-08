@@ -35,12 +35,12 @@ function dotIcon(color: string, size = 14, opts?: { label?: string; live?: boole
     ? `<span style="
         position:absolute; left:50%; top:0; transform:translate(-50%,-100%);
         display:flex; align-items:center; gap:3px;
-        background:white; border:1.5px solid ${color}; border-radius:9999px;
+        background:var(--card, #fff); border:1.5px solid ${color}; border-radius:9999px;
         padding:1px 6px 1px 5px; font-size:10px; font-weight:700; color:${color};
-        white-space:nowrap; box-shadow:0 1px 3px rgba(15,23,42,0.3);
+        white-space:nowrap; box-shadow:0 1px 3px rgba(28,24,21,0.25);
       ">${
         opts.live
-          ? `<span style="width:5px;height:5px;border-radius:9999px;background:#dc2626;box-shadow:0 0 0 2px rgba(220,38,38,0.25);"></span>`
+          ? `<span style="width:5px;height:5px;border-radius:9999px;background:#a84338;box-shadow:0 0 0 2px rgba(168,67,56,0.25);"></span>`
           : ""
       }${opts.label}</span>`
     : "";
@@ -52,8 +52,8 @@ function dotIcon(color: string, size = 14, opts?: { label?: string; live?: boole
         display:block; width:100%; height:100%;
         border-radius:9999px;
         background:${color};
-        border:2px solid white;
-        box-shadow:0 0 0 1px rgba(15,23,42,0.25), 0 1px 3px rgba(15,23,42,0.35);
+        border:2px solid var(--card, #fff);
+        box-shadow:0 0 0 1px rgba(28,24,21,0.2), 0 1px 3px rgba(28,24,21,0.3);
         ${opts?.ring ? `outline:3px solid ${color}33;` : ""}
       "></span>
     </span>`,
@@ -69,8 +69,8 @@ function riderIcon(color: string) {
       display:flex;align-items:center;justify-content:center;
       width:26px;height:26px;border-radius:9999px;
       background:${color};
-      border:3px solid white;
-      box-shadow:0 2px 6px rgba(15,23,42,0.45);
+      border:3px solid var(--card, #fff);
+      box-shadow:0 2px 6px rgba(28,24,21,0.4);
       color:white;font-size:13px;
     ">●</span>`,
     iconSize: [26, 26],
@@ -98,7 +98,7 @@ export function LeafletMapInner({
   markers = [],
   polylines = [],
   riderPosition,
-  riderColor = "#0e6e63",
+  riderColor = "#2c1e16",
   fitToContent = false,
   heightClass = "h-full",
   trafficTileUrl,
@@ -147,7 +147,7 @@ export function LeafletMapInner({
             key={pl.id}
             positions={pl.positions}
             pathOptions={{
-              color: pl.color ?? "#0e6e63",
+              color: pl.color ?? "#2c1e16",
               weight: pl.weight ?? 4,
               opacity: pl.opacity ?? 0.85,
               dashArray: pl.dashArray,
@@ -158,7 +158,7 @@ export function LeafletMapInner({
           <Marker
             key={m.id}
             position={[m.lat, m.lng]}
-            icon={dotIcon(m.color ?? "#0e6e63", m.radius ?? 14, { label: m.label, live: m.live })}
+            icon={dotIcon(m.color ?? "#2c1e16", m.radius ?? 14, { label: m.label, live: m.live })}
           >
             {m.popup && <Popup>{m.popup}</Popup>}
           </Marker>

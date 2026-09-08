@@ -23,7 +23,7 @@ export function NavBar() {
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
-    <header className="sticky top-0 z-40 hidden border-b border-[var(--card-border)] bg-white/90 backdrop-blur lg:block">
+    <header className="sticky top-0 z-40 hidden border-b border-[var(--card-border)] bg-[var(--card)]/90 backdrop-blur lg:block">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
         <Link href="/" className="flex items-center gap-2">
           <Image src="/logo.png" alt="" width={32} height={32} className="h-8 w-8" priority />

@@ -12,7 +12,7 @@ import { classifyPm25 } from "@/lib/exposure";
 import type { WaqiHistoricalAverage } from "@/lib/liveEnvironment";
 import type { Hotspot, DataProvenance, EnvironmentalReading } from "@/lib/types";
 
-const LEVEL_COLORS = { Low: "#059669", Moderate: "#d97706", High: "#e11d48" } as const;
+const LEVEL_COLORS = { Low: "#4a6b53", Moderate: "#c28b38", High: "#a84338" } as const;
 
 function levelForHotspot(h: Hotspot, thresholds: { low: number; high: number }): "Low" | "Moderate" | "High" {
   if (h.avgPm25 < thresholds.low) return "Low";
@@ -111,7 +111,7 @@ export function ExposureMapClient({
             </span>
             <span className="text-slate-400">(3-tier prototype scale; marker size = visit frequency)</span>
             <span className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
-              <span className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
+              <span className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-[var(--card)] px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
                 <span className="h-1.5 w-1.5 rounded-full bg-rose-600" /> 91
               </span>
               = live/historical reading available right now (colour reflects that reading, not the historical average)
@@ -134,7 +134,7 @@ export function ExposureMapClient({
                 <div className="flex items-center gap-1.5">
                   <span className="font-semibold text-slate-800">{h.label}</span>
                   {liveReadings[h.id] && liveReadings[h.id].mode !== "synthetic" && liveReadings[h.id].pm25 !== null && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-[var(--card)] px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
                       <span className="h-1.5 w-1.5 rounded-full bg-rose-600" /> {liveReadings[h.id].pm25} now
                     </span>
                   )}

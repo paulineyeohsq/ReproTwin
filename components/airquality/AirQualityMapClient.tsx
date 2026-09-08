@@ -21,12 +21,12 @@ type Metric = "aqi" | "pm25";
 // lib/aqiConversion.ts), not two different measurements, so the toggle
 // below only changes which number is shown, never the colour.
 const AQI_BANDS = [
-  { max: 50, label: "Good", color: "#059669" },
-  { max: 100, label: "Moderate", color: "#d97706" },
-  { max: 150, label: "Unhealthy (sensitive groups)", color: "#ea580c" },
-  { max: 200, label: "Unhealthy", color: "#dc2626" },
-  { max: 300, label: "Very unhealthy", color: "#7e22ce" },
-  { max: Infinity, label: "Hazardous", color: "#7f1d1d" },
+  { max: 50, label: "Good", color: "#4a6b53" },
+  { max: 100, label: "Moderate", color: "#c28b38" },
+  { max: 150, label: "Unhealthy (sensitive groups)", color: "#b85b35" },
+  { max: 200, label: "Unhealthy", color: "#a84338" },
+  { max: 300, label: "Very unhealthy", color: "#7a2e24" },
+  { max: Infinity, label: "Hazardous", color: "#4a1811" },
 ] as const;
 
 function bandFor(aqi: number) {
@@ -73,7 +73,7 @@ export function AirQualityMapClient({
         <div className="flex flex-col items-end gap-1.5">
           {stations.length > 0 && <EnvironmentalModeBadge mode="live" />}
           {stations.length > 0 && (
-            <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-medium">
+            <div className="flex rounded-lg border border-slate-200 bg-[var(--card)] p-0.5 text-xs font-medium">
               {(["aqi", "pm25"] as const).map((m) => (
                 <button
                   key={m}

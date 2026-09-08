@@ -41,7 +41,7 @@ export function MyRidesTab() {
 
   if (trips.length === 0) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+      <div className="rounded-2xl border border-slate-200 bg-[var(--card)] p-6 text-center text-sm text-slate-500">
         No recorded rides yet.{" "}
         <Link href="/" className="text-[var(--brand-dark)] underline">
           Start a ride
@@ -62,7 +62,7 @@ export function MyRidesTab() {
       {Array.from(groups.entries()).map(([label, group]) => (
         <div key={label}>
           <p className="mb-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-[var(--card)]">
             {group.map((t, i) => {
               const level = classifyPm25(t.avgPm25);
               return (

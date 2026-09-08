@@ -11,7 +11,10 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm",
+        // Editorial style: a defined 1px border carries the card, not a
+        // drop shadow — matches fine-print/journal layouts more than a
+        // typical soft-UI dashboard.
+        "rounded-xl border border-[var(--card-border)] bg-[var(--card)]",
         className
       )}
     >

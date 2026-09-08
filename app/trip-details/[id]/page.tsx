@@ -91,9 +91,9 @@ export default function TripDetailsPage() {
             zoom={12}
             fitToContent
             polylines={[
-              { id: "route", positions: routeGeometry.map((w) => [w.lat, w.lng] as [number, number]), color: "#64748b", weight: 4 },
+              { id: "route", positions: routeGeometry.map((w) => [w.lat, w.lng] as [number, number]), color: "#8c8074", weight: 4 },
               ...(observedPositions.length > 1
-                ? [{ id: "observed", positions: observedPositions, color: "#f59e0b", weight: 5, dashArray: "2 6" }]
+                ? [{ id: "observed", positions: observedPositions, color: "#c28b38", weight: 5, dashArray: "2 6" }]
                 : []),
             ]}
           />

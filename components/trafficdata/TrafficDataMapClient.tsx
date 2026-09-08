@@ -11,10 +11,10 @@ import { Info } from "lucide-react";
 // lib/liveTraffic.ts uses for the exposure model's 3-level TrafficLevel —
 // a finer 4-band gradient reads better on a map than 3 flat colours.
 const RATIO_BANDS = [
-  { min: 0.85, label: "Free-flowing", color: "#059669" },
-  { min: 0.65, label: "Light", color: "#65a30d" },
-  { min: 0.45, label: "Moderate", color: "#d97706" },
-  { min: -Infinity, label: "Heavy", color: "#dc2626" },
+  { min: 0.85, label: "Free-flowing", color: "#4a6b53" },
+  { min: 0.65, label: "Light", color: "#6b8f6f" },
+  { min: 0.45, label: "Moderate", color: "#c28b38" },
+  { min: -Infinity, label: "Heavy", color: "#a84338" },
 ] as const;
 
 function bandFor(ratio: number) {

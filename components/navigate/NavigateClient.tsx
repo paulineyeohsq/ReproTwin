@@ -37,9 +37,9 @@ type GpsState = "idle" | "requesting" | "tracking" | "denied" | "unsupported";
 type RideState = "setup" | "loading_routes" | "comparing" | "permission" | "riding" | "paused" | "summary";
 
 const PROFILE_COLORS: Record<RouteProfile, string> = {
-  fastest: "#64748b",
-  balanced: "#2563eb",
-  low_exposure: "#0e6e63",
+  fastest: "#8c8074",
+  balanced: "#8a6d3b",
+  low_exposure: "#4a6b53",
 };
 
 const PROFILE_META: Record<RouteProfile, { icon: typeof Zap; label: string }> = {
@@ -490,7 +490,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
 
   const trajectoryPolyline =
     trajectory.length > 1
-      ? [{ id: "observed", positions: trajectory.map((p) => [p.latitude, p.longitude] as [number, number]), color: "#f59e0b", weight: 5, dashArray: "2 6" }]
+      ? [{ id: "observed", positions: trajectory.map((p) => [p.latitude, p.longitude] as [number, number]), color: "#c28b38", weight: 5, dashArray: "2 6" }]
       : [];
 
   // ============================================================
@@ -511,7 +511,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleGeocode()}
             placeholder="Where are you going?"
-            className="h-14 w-full rounded-2xl border border-slate-300 bg-white pl-12 pr-24 text-base shadow-sm"
+            className="h-14 w-full rounded-2xl border border-slate-300 bg-[var(--card)] pl-12 pr-24 text-base shadow-sm"
           />
           <Button
             size="sm"
@@ -524,7 +524,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
         </div>
 
         {geocodeResults.length > 0 && (
-          <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-[var(--card)]">
             {geocodeResults.map((r) => (
               <button
                 key={`${r.lat}-${r.lng}`}
@@ -568,7 +568,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
                 <button
                   key={d.label}
                   onClick={() => fetchRoutesFor(d)}
-                  className="min-h-[44px] rounded-full border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+                  className="min-h-[44px] rounded-full border border-slate-300 bg-[var(--card)] px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
                 >
                   {d.label}
                 </button>
@@ -584,7 +584,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
               <button
                 key={d.label}
                 onClick={() => fetchRoutesFor(d)}
-                className="min-h-[44px] rounded-full border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+                className="min-h-[44px] rounded-full border border-slate-300 bg-[var(--card)] px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
               >
                 {d.label}
               </button>
@@ -604,7 +604,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
   // ============================================================
   if (rideState === "loading_routes") {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-3 bg-white">
+      <div className="flex h-dvh flex-col items-center justify-center gap-3 bg-[var(--card)]">
         <Loader2 className="h-8 w-8 animate-spin text-[var(--brand)]" />
         <p className="text-sm text-slate-500">Finding your best routes…</p>
       </div>
@@ -617,7 +617,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
   // ============================================================
   if (rideState === "permission") {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-white px-6 text-center">
+      <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-[var(--card)] px-6 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--brand)]/10">
           <Locate className="h-8 w-8 text-[var(--brand)]" />
         </div>
@@ -703,7 +703,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
     <div className="relative h-dvh w-full overflow-hidden bg-slate-100">
       <div className="safe-top absolute inset-x-0 top-0 z-[1000] flex items-center justify-between px-4 py-3">
         {isNavigating ? (
-          <div className="rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-slate-800 shadow-md">
+          <div className="rounded-full bg-[var(--card)]/95 px-4 py-2 text-sm font-semibold text-slate-800 shadow-md">
             Riding to {destination?.label}
           </div>
         ) : (
@@ -713,7 +713,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
               setCandidates([]);
               setSheetState("collapsed");
             }}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-white/95 px-4 text-sm font-medium text-slate-700 shadow-md"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-[var(--card)]/95 px-4 text-sm font-medium text-slate-700 shadow-md"
           >
             ← Back
           </button>
@@ -869,20 +869,20 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
 function GpsBadge({ state }: { state: GpsState }) {
   if (state === "tracking") {
     return (
-      <div className="flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-md">
+      <div className="flex items-center gap-1.5 rounded-full bg-[var(--card)]/95 px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-md">
         <span className="h-2 w-2 rounded-full bg-emerald-500" /> GPS active
       </div>
     );
   }
   if (state === "denied" || state === "unsupported") {
     return (
-      <div className="flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-rose-700 shadow-md">
+      <div className="flex items-center gap-1.5 rounded-full bg-[var(--card)]/95 px-3 py-1.5 text-xs font-medium text-rose-700 shadow-md">
         <span className="h-2 w-2 rounded-full bg-rose-500" /> GPS unavailable
       </div>
     );
   }
   return (
-    <div className="flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-amber-700 shadow-md">
+    <div className="flex items-center gap-1.5 rounded-full bg-[var(--card)]/95 px-3 py-1.5 text-xs font-medium text-amber-700 shadow-md">
       <span className="h-2 w-2 rounded-full bg-amber-500" /> GPS accuracy low
     </div>
   );
@@ -925,7 +925,7 @@ function NavigationBottomBar({
             exposure
           </p>
           <div className="mt-3 flex gap-2">
-            <Button size="sm" variant="outline" className="flex-1 bg-white" onClick={onDismissWarning}>
+            <Button size="sm" variant="outline" className="flex-1 bg-[var(--card)]" onClick={onDismissWarning}>
               Stay
             </Button>
             <Button size="sm" className="flex-1" onClick={onTakeAlternative}>
@@ -935,7 +935,7 @@ function NavigationBottomBar({
         </div>
       )}
 
-      <div className="rounded-2xl bg-white p-4 shadow-[0_-4px_24px_rgba(15,23,42,0.15)]">
+      <div className="rounded-2xl bg-[var(--card)] p-4 shadow-[0_-4px_24px_rgba(15,23,42,0.15)]">
         <div className="flex items-baseline justify-between">
           <div className="text-2xl font-bold text-slate-900">{remainingMin} min</div>
           <div className="text-lg font-semibold text-slate-500">{remainingKm.toFixed(1)} km</div>

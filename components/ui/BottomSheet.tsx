@@ -39,7 +39,7 @@ export function BottomSheet({
   return (
     <div
       className={cn(
-        "safe-bottom fixed inset-x-0 bottom-0 z-[1000] mx-auto w-full max-w-lg rounded-t-2xl border-t border-[var(--card-border)] bg-white shadow-[0_-8px_30px_rgba(15,23,42,0.15)] transition-[max-height] duration-300 ease-out",
+        "safe-bottom fixed inset-x-0 bottom-0 z-[1000] mx-auto w-full max-w-lg rounded-t-2xl border-t border-[var(--card-border)] bg-[var(--card)] shadow-[0_-8px_30px_rgba(15,23,42,0.15)] transition-[max-height] duration-300 ease-out",
         state === "expanded" ? "max-h-[80vh]" : "max-h-[124px]",
         className
       )}

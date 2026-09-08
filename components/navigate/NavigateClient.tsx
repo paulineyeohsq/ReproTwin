@@ -37,9 +37,9 @@ type GpsState = "idle" | "requesting" | "tracking" | "denied" | "unsupported";
 type RideState = "setup" | "loading_routes" | "comparing" | "permission" | "riding" | "paused" | "summary";
 
 const PROFILE_COLORS: Record<RouteProfile, string> = {
-  fastest: "#8c8074",
-  balanced: "#8a6d3b",
-  low_exposure: "#4a6b53",
+  fastest: "#64748b",
+  balanced: "#2563eb",
+  low_exposure: "#16a34a",
 };
 
 const PROFILE_META: Record<RouteProfile, { icon: typeof Zap; label: string }> = {
@@ -490,7 +490,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
 
   const trajectoryPolyline =
     trajectory.length > 1
-      ? [{ id: "observed", positions: trajectory.map((p) => [p.latitude, p.longitude] as [number, number]), color: "#c28b38", weight: 5, dashArray: "2 6" }]
+      ? [{ id: "observed", positions: trajectory.map((p) => [p.latitude, p.longitude] as [number, number]), color: "#d97706", weight: 5, dashArray: "2 6" }]
       : [];
 
   // ============================================================
@@ -500,7 +500,7 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
     return (
       <div className="mx-auto flex max-w-lg flex-col gap-6 pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Exposure-Aware Navigation</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--brand-title)]">Exposure-Aware Navigation</h1>
           <p className="mt-1 text-sm text-slate-500">Find the route with the cleanest air, not just the fastest one.</p>
         </div>
 

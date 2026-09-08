@@ -11,10 +11,10 @@ import { Info } from "lucide-react";
 // lib/liveTraffic.ts uses for the exposure model's 3-level TrafficLevel —
 // a finer 4-band gradient reads better on a map than 3 flat colours.
 const RATIO_BANDS = [
-  { min: 0.85, label: "Free-flowing", color: "#4a6b53" },
-  { min: 0.65, label: "Light", color: "#6b8f6f" },
-  { min: 0.45, label: "Moderate", color: "#c28b38" },
-  { min: -Infinity, label: "Heavy", color: "#a84338" },
+  { min: 0.85, label: "Free-flowing", color: "#16a34a" },
+  { min: 0.65, label: "Light", color: "#4ade80" },
+  { min: 0.45, label: "Moderate", color: "#d97706" },
+  { min: -Infinity, label: "Heavy", color: "#dc2626" },
 ] as const;
 
 function bandFor(ratio: number) {
@@ -34,7 +34,7 @@ export function TrafficDataMapClient({
     <div className="mx-auto max-w-5xl space-y-4 pb-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Malaysia Traffic Data</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--brand-title)]">Malaysia Traffic Data</h1>
           <p className="mt-1 text-sm text-slate-500">
             Live per-road speed via TomTom&apos;s traffic map, plus a nationwide snapshot at major cities.
           </p>

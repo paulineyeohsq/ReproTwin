@@ -12,7 +12,7 @@ import { classifyPm25 } from "@/lib/exposure";
 import type { WaqiHistoricalAverage } from "@/lib/liveEnvironment";
 import type { Hotspot, DataProvenance, EnvironmentalReading } from "@/lib/types";
 
-const LEVEL_COLORS = { Low: "#4a6b53", Moderate: "#c28b38", High: "#a84338" } as const;
+const LEVEL_COLORS = { Low: "#16a34a", Moderate: "#d97706", High: "#dc2626" } as const;
 
 function levelForHotspot(h: Hotspot, thresholds: { low: number; high: number }): "Low" | "Moderate" | "High" {
   if (h.avgPm25 < thresholds.low) return "Low";

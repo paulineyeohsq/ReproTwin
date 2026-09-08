@@ -5,7 +5,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
+        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-[var(--brand-title)]">
           <ShieldCheck className="h-6 w-6 text-[var(--brand)]" /> Privacy &amp;
           data governance
         </h1>

@@ -50,17 +50,17 @@ export function ExposureTrendChart({ data }: { data: DailyAggregate[] }) {
       <div className="h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={sliced} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e8e2d8" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
             <XAxis
               dataKey="dateLabel"
-              tick={{ fontSize: 11, fill: "#736860" }}
+              tick={{ fontSize: 11, fill: "#4b5563" }}
               interval={range === 90 ? 10 : range === 30 ? 3 : 0}
-              axisLine={{ stroke: "#e8e2d8" }}
+              axisLine={{ stroke: "#e2e8f0" }}
               tickLine={false}
             />
             <YAxis
               yAxisId="exposure"
-              tick={{ fontSize: 11, fill: "#736860" }}
+              tick={{ fontSize: 11, fill: "#4b5563" }}
               axisLine={false}
               tickLine={false}
               width={40}
@@ -68,7 +68,7 @@ export function ExposureTrendChart({ data }: { data: DailyAggregate[] }) {
             <YAxis
               yAxisId="hours"
               orientation="right"
-              tick={{ fontSize: 11, fill: "#736860" }}
+              tick={{ fontSize: 11, fill: "#4b5563" }}
               axisLine={false}
               tickLine={false}
               width={32}
@@ -76,7 +76,7 @@ export function ExposureTrendChart({ data }: { data: DailyAggregate[] }) {
             <Tooltip
               contentStyle={{
                 borderRadius: 8,
-                border: "1px solid #e8e2d8",
+                border: "1px solid #e2e8f0",
                 fontSize: 12,
               }}
             />
@@ -85,7 +85,7 @@ export function ExposureTrendChart({ data }: { data: DailyAggregate[] }) {
               yAxisId="exposure"
               dataKey="exposure"
               name="Daily exposure (units)"
-              fill="#2c1e16"
+              fill="#059669"
               radius={[3, 3, 0, 0]}
               maxBarSize={18}
             />
@@ -94,7 +94,7 @@ export function ExposureTrendChart({ data }: { data: DailyAggregate[] }) {
               type="monotone"
               dataKey="ridingHours"
               name="Riding hours"
-              stroke="#c28b38"
+              stroke="#d97706"
               strokeWidth={2}
               dot={false}
             />

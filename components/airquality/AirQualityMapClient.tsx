@@ -21,12 +21,12 @@ type Metric = "aqi" | "pm25";
 // lib/aqiConversion.ts), not two different measurements, so the toggle
 // below only changes which number is shown, never the colour.
 const AQI_BANDS = [
-  { max: 50, label: "Good", color: "#4a6b53" },
-  { max: 100, label: "Moderate", color: "#c28b38" },
-  { max: 150, label: "Unhealthy (sensitive groups)", color: "#b85b35" },
-  { max: 200, label: "Unhealthy", color: "#a84338" },
-  { max: 300, label: "Very unhealthy", color: "#7a2e24" },
-  { max: Infinity, label: "Hazardous", color: "#4a1811" },
+  { max: 50, label: "Good", color: "#16a34a" },
+  { max: 100, label: "Moderate", color: "#ca8a04" },
+  { max: 150, label: "Unhealthy (sensitive groups)", color: "#f97316" },
+  { max: 200, label: "Unhealthy", color: "#c2410c" },
+  { max: 300, label: "Very unhealthy", color: "#7e22ce" },
+  { max: Infinity, label: "Hazardous", color: "#4c1d95" },
 ] as const;
 
 function bandFor(aqi: number) {
@@ -65,7 +65,7 @@ export function AirQualityMapClient({
     <div className="mx-auto max-w-5xl space-y-4 pb-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Malaysia Air Quality</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--brand-title)]">Malaysia Air Quality</h1>
           <p className="mt-1 text-sm text-slate-500">
             Every currently-reporting DOE/JAS monitoring station nationwide, live.
           </p>

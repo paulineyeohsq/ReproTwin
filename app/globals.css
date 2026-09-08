@@ -1,105 +1,52 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Design tokens — Palette 1: "The Archival Print" (warm/editorial)
-   Deep Espresso ink, Burnt Terracotta accent, warm cream/linen
-   surfaces. Dark mode is a warm dark-roast base, never cool/blue.
+   Design tokens — Palette 2: "Field Data" (light, professional,
+   emerald-accented). Cool slate-gray neutrals throughout; no dark
+   mode — this palette is light-only by design.
    ============================================================ */
 :root {
   /* Surfaces */
-  --background: #f9f6f0; /* Warm Cream / Linen */
-  --card: #ffffff; /* Pure Crisp White */
-  --card-border: #e8e2d8;
-  --surface-muted: #f3eee5; /* subtle warm tint for hover/muted rows */
+  --background: #f8fafc; /* Crisp off-white */
+  --card: #ffffff;
+  --card-border: #e2e8f0;
+  --surface-muted: #f1f5f9; /* subtle cool tint for hover/muted rows */
 
   /* Text */
-  --foreground: #1c1815; /* Off-Black */
-  --foreground-secondary: #736860; /* Muted Umber */
+  --foreground: #111827; /* Deep charcoal */
+  --foreground-secondary: #4b5563; /* Medium gray */
 
-  /* Primary ink — solid CTA buttons only (never used as an accent tint) */
-  --ink: #2c1e16; /* Deep Espresso */
-  --ink-dark: #1a120c; /* CTA hover/pressed */
+  /* Primary ink — solid CTA buttons. Same hue family as `--brand` in
+     this palette (unlike the previous one, CTA buttons and interactive
+     accents converge on the same emerald). */
+  --ink: #059669; /* Emerald */
+  --ink-dark: #047857; /* CTA hover/pressed */
 
-  /* Accent — reserved for key interactive highlights, active tab
-     indicators and notifications, per the palette's own guidance. Kept
-     under the pre-existing `--brand`/`--brand-dark` variable names since
-     the whole app already threads these two names through for exactly
-     that role (active nav state, selected-route borders, links,
-     "Recommended" badges) — changing the values here re-skins all of it
-     without touching each call site individually. */
-  --brand: #b85b35; /* Burnt Terracotta */
-  --brand-dark: #96481f; /* darker terracotta for hover/pressed accents */
+  /* Accent — active toggle states, active tab indicators, links,
+     "Recommended" badges, selected-route borders. Kept under the
+     pre-existing `--brand`/`--brand-dark` names since the whole app
+     already threads these two names through for exactly that role. */
+  --brand: #059669; /* Emerald */
+  --brand-dark: #047857; /* darker emerald for hover/pressed accents */
+
+  /* Static brand identity — page titles, card header titles, the nav
+     wordmark. Deliberately a deeper, less saturated green than the
+     interactive `--brand` emerald so headings read as identity, not
+     as something clickable. */
+  --brand-title: #047857; /* Forest green */
 
   /* System tones */
-  --success: #4a6b53; /* Sage */
-  --success-tint: #eef2ee;
-  --success-border: #c9d6cb;
-  --warning: #c28b38; /* Amber Rust */
-  --warning-tint: #faf1e3;
-  --warning-border: #ecd6ab;
-  --error: #a84338; /* Muted Crimson */
-  --error-tint: #f7e9e7;
-  --error-border: #e3bab3;
+  --success: #16a34a; /* Leaf green — status badges, "LIVE" indicators */
+  --success-tint: #dcfce7;
+  --success-border: #86efac;
+  --warning: #d97706; /* Amber */
+  --warning-tint: #fffbeb;
+  --warning-border: #fde68a;
+  --error: #dc2626; /* Red */
+  --error-tint: #fef2f2;
+  --error-border: #fecaca;
 
   color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --background: #1a1614; /* Dark Roast Charcoal */
-    --card: #241e1a;
-    --card-border: #3a322c;
-    --surface-muted: #2c2521;
-
-    --foreground: #f2ece3;
-    --foreground-secondary: #a89c8f;
-
-    --ink: #f2ece3; /* on a dark base, the CTA inverts to a light-ink button */
-    --ink-dark: #ddd3c6;
-
-    --brand: #d97a52; /* lifted terracotta for legibility on a dark base */
-    --brand-dark: #e89571;
-
-    --success: #7ba185;
-    --success-tint: #26302a;
-    --success-border: #3d4d40;
-    --warning: #d9a45c;
-    --warning-tint: #332a1c;
-    --warning-border: #4d3d26;
-    --error: #cc7267;
-    --error-tint: #362320;
-    --error-border: #52332e;
-
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme="dark"] {
-  --background: #1a1614;
-  --card: #241e1a;
-  --card-border: #3a322c;
-  --surface-muted: #2c2521;
-
-  --foreground: #f2ece3;
-  --foreground-secondary: #a89c8f;
-
-  --ink: #f2ece3;
-  --ink-dark: #ddd3c6;
-
-  --brand: #d97a52;
-  --brand-dark: #e89571;
-
-  --success: #7ba185;
-  --success-tint: #26302a;
-  --success-border: #3d4d40;
-  --warning: #d9a45c;
-  --warning-tint: #332a1c;
-  --warning-border: #4d3d26;
-  --error: #cc7267;
-  --error-tint: #362320;
-  --error-border: #52332e;
-
-  color-scheme: dark;
 }
 
 @theme inline {
@@ -107,32 +54,30 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter);
 
-  /* Remap Tailwind's built-in neutral scale to this palette's warm ramp —
-     every existing `text-slate-*`/`bg-slate-*`/`border-slate-*` utility
-     across the app (dozens of components) picks this up automatically,
-     with zero per-component edits. The shades that map onto an actual
-     semantic role (primary/secondary text, border, background, muted
-     surface) reference the adaptive tokens above so they correctly
-     invert in dark mode too; the remaining in-between shades (used for
-     lighter decorative tints, not primary text/surface) stay a static
-     warm tone. */
+  /* Remap Tailwind's built-in neutral scale to this palette's cool
+     slate ramp — every existing `text-slate-*`/`bg-slate-*`/`border-slate-*`
+     utility across the app (dozens of components) picks this up
+     automatically, with zero per-component edits. The shades that map
+     onto an actual semantic role (primary/secondary text, border,
+     background, muted surface) reference the tokens above; the
+     remaining in-between shades (lighter decorative tints, not primary
+     text/surface) stay a static cool-gray tone. */
   --color-slate-50: var(--background);
   --color-slate-100: var(--surface-muted);
   --color-slate-200: var(--card-border);
-  --color-slate-300: #d9d0c2;
-  --color-slate-400: #b3a79a;
-  --color-slate-500: #8c8074;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
   --color-slate-600: var(--foreground-secondary);
-  --color-slate-700: #5a5049;
-  --color-slate-800: #3a322c;
+  --color-slate-700: #374151;
+  --color-slate-800: #1f2937;
   --color-slate-900: var(--foreground);
-  --color-slate-950: #14100d;
+  --color-slate-950: #030712;
 
   /* Remap the three Tailwind palettes this app already uses as its
      Low/Moderate/High (success/warning/error) exposure-status language —
      every existing `emerald`/`amber`/`rose` badge, delta and status row
-     inherits the palette's Sage/Amber Rust/Muted Crimson system tones,
-     dark-mode-adaptive since these reference the tokens above. */
+     inherits this palette's Leaf Green/Amber/Red system tones. */
   --color-emerald-50: var(--success-tint);
   --color-emerald-200: var(--success-border);
   --color-emerald-600: var(--success);

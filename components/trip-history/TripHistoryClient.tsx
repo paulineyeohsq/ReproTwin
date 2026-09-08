@@ -199,7 +199,7 @@ export function TripHistoryClient({
                       positions: selectedTrip.waypoints.map(
                         (w) => [w.latitude, w.longitude] as [number, number]
                       ),
-                      color: "#2c1e16",
+                      color: "#059669",
                       weight: 4,
                     },
                   ]}
@@ -208,20 +208,20 @@ export function TripHistoryClient({
                       id: "start",
                       lat: selectedTrip.waypoints[0].latitude,
                       lng: selectedTrip.waypoints[0].longitude,
-                      color: "#2c1e16",
+                      color: "#059669",
                     },
                     {
                       id: "end",
                       lat: selectedTrip.waypoints[selectedTrip.waypoints.length - 1].latitude,
                       lng: selectedTrip.waypoints[selectedTrip.waypoints.length - 1].longitude,
-                      color: "#3a322c",
+                      color: "#1f2937",
                     },
                     ...(isReal
                       ? stations.map((s) => ({
                           id: `station-${s.location}`,
                           lat: s.lat,
                           lng: s.lng,
-                          color: "#b85b35",
+                          color: "#2563eb",
                           radius: 10,
                           popup: (
                             <div className="text-xs">
@@ -241,10 +241,10 @@ export function TripHistoryClient({
             {isReal && (
               <div className="flex flex-wrap gap-3 border-t border-[var(--card-border)] px-5 py-2.5 text-xs text-slate-500">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-[#2c1e16]" /> Real GPS trajectory
+                  <span className="h-2 w-2 rounded-full bg-[#059669]" /> Real GPS trajectory
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-[#b85b35]" /> Environmental monitoring station
+                  <span className="h-2 w-2 rounded-full bg-[#2563eb]" /> Environmental monitoring station
                 </span>
               </div>
             )}

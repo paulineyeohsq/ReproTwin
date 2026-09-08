@@ -33,7 +33,7 @@ export const viewport: Viewport = {
   // accessibility anti-pattern (WCAG 1.4.4) — a well-laid-out page
   // shouldn't need to forbid zooming to look right.
   viewportFit: "cover",
-  themeColor: "#2c1e16",
+  themeColor: "#059669",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

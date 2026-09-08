@@ -11,10 +11,9 @@ export function Card({
   return (
     <div
       className={cn(
-        // Editorial style: a defined 1px border carries the card, not a
-        // drop shadow — matches fine-print/journal layouts more than a
-        // typical soft-UI dashboard.
-        "rounded-xl border border-[var(--card-border)] bg-[var(--card)]",
+        // Light dashboard style: a soft, subtle shadow carries the card's
+        // elevation, backed by a thin border for definition at the edge.
+        "rounded-xl border border-[var(--card-border)] bg-[var(--card)] shadow-sm",
         className
       )}
     >
@@ -35,7 +34,7 @@ export function CardHeader({
   return (
     <div className="flex flex-col items-start gap-2 border-b border-[var(--card-border)] px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
       <div>
-        <h3 className="text-sm font-semibold tracking-tight text-slate-900">
+        <h3 className="text-sm font-semibold tracking-tight text-[var(--brand-title)]">
           {title}
         </h3>
         {subtitle && (

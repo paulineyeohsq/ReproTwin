@@ -28,7 +28,7 @@ export function NavBar() {
         <Link href="/" className="flex items-center gap-2">
           <Image src="/logo.png" alt="" width={32} height={32} className="h-8 w-8" priority />
           <div className="leading-tight">
-            <div className="text-sm font-bold tracking-tight text-slate-900">
+            <div className="text-sm font-bold tracking-tight text-[var(--brand-title)]">
               E-Navigate
             </div>
             <div className="hidden text-[10px] uppercase tracking-wide text-slate-500 sm:block">

@@ -6,10 +6,10 @@ import path from "path";
 
 const svg = `
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" rx="112" fill="#2c1e16"/>
-  <path d="M256 96c-70 0-126 56-126 126 0 94 126 194 126 194s126-100 126-194c0-70-56-126-126-126z" fill="#f9f6f0"/>
-  <circle cx="256" cy="222" r="52" fill="#b85b35"/>
-  <path d="M210 222c0-8 4-15 10-19" stroke="#e3a183" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <rect width="512" height="512" rx="112" fill="#059669"/>
+  <path d="M256 96c-70 0-126 56-126 126 0 94 126 194 126 194s126-100 126-194c0-70-56-126-126-126z" fill="#ffffff"/>
+  <circle cx="256" cy="222" r="52" fill="#047857"/>
+  <path d="M210 222c0-8 4-15 10-19" stroke="#6ee7b7" stroke-width="10" stroke-linecap="round" fill="none"/>
 </svg>`;
 
 const outDir = path.resolve("public", "icons");
@@ -35,7 +35,7 @@ for (const { file, size, padding } of sizes) {
         bottom: Math.round((size - inner) / 2),
         left: Math.round((size - inner) / 2),
         right: Math.round((size - inner) / 2),
-        background: "#2c1e16",
+        background: "#059669",
       });
   }
   await pipeline.png().toFile(path.join(outDir, file));

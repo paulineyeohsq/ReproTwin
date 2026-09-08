@@ -57,9 +57,9 @@ interface RouteFetchResponse {
 }
 
 const PROFILE_COLORS: Record<RouteProfile, string> = {
-  fastest: "#8c8074",
-  balanced: "#8a6d3b",
-  low_exposure: "#4a6b53",
+  fastest: "#64748b",
+  balanced: "#2563eb",
+  low_exposure: "#16a34a",
 };
 
 const PROFILE_META: Record<RouteProfile, { icon: typeof Zap; label: string }> = {
@@ -68,10 +68,10 @@ const PROFILE_META: Record<RouteProfile, { icon: typeof Zap; label: string }> = 
   low_exposure: { icon: Leaf, label: "Low exposure" },
 };
 
-const MUTED_ROUTE_COLOR = "#b3a79a";
+const MUTED_ROUTE_COLOR = "#94a3b8";
 // The selected/highlighted route is the app's key interactive highlight —
-// the palette reserves its Terracotta accent specifically for this role.
-const SELECTED_ROUTE_COLOR = "#b85b35";
+// the palette reserves its Emerald accent specifically for this role.
+const SELECTED_ROUTE_COLOR = "#059669";
 
 async function fetchEnvironmentReading(lat: number, lng: number): Promise<EnvironmentalReading> {
   const res = await fetch(`/api/environment?lat=${lat}&lng=${lng}`);
@@ -418,8 +418,8 @@ export function LiveExposureClient() {
   const markers =
     destination
       ? [
-          { id: "origin", lat: origin.lat, lng: origin.lng, color: "#2c1e16", radius: 9 },
-          { id: "destination", lat: destination.lat, lng: destination.lng, color: "#3a322c", radius: 9 },
+          { id: "origin", lat: origin.lat, lng: origin.lng, color: "#059669", radius: 9 },
+          { id: "destination", lat: destination.lat, lng: destination.lng, color: "#1f2937", radius: 9 },
         ]
       : [];
 
@@ -433,7 +433,7 @@ export function LiveExposureClient() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+        <h1 className="text-2xl font-bold tracking-tight text-[var(--brand-title)]">
           Live Exposure
         </h1>
         <p className="mt-1 text-sm text-slate-500">

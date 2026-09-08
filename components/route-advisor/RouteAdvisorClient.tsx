@@ -16,15 +16,15 @@ import { Sparkles, Clock, Wind, Route as RouteIcon, Map as MapIcon, Search, Loca
 import type { RouteProfile, CandidateRoute } from "@/lib/types";
 
 const PROFILE_COLORS: Record<RouteProfile, string> = {
-  fastest: "#8c8074",
-  balanced: "#8a6d3b",
-  low_exposure: "#4a6b53",
+  fastest: "#64748b",
+  balanced: "#2563eb",
+  low_exposure: "#16a34a",
 };
 
 const EXPOSURE_LEVEL_HEX: Record<string, string> = {
-  Low: "#4a6b53",
-  Moderate: "#c28b38",
-  High: "#a84338",
+  Low: "#16a34a",
+  Moderate: "#d97706",
+  High: "#dc2626",
 };
 
 interface Place {
@@ -235,7 +235,7 @@ export function RouteAdvisorClient({
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--brand-title)]">
             Motorcycle Route Advisor
           </h1>
           <p className="mt-1 text-sm text-slate-500">

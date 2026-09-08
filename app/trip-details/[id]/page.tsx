@@ -56,7 +56,7 @@ export default function TripDetailsPage() {
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+        <h1 className="text-2xl font-bold tracking-tight text-[var(--brand-title)]">
           {trip.originLabel} → {trip.destinationLabel}
         </h1>
         <p className="mt-1 text-sm text-slate-500">
@@ -91,9 +91,9 @@ export default function TripDetailsPage() {
             zoom={12}
             fitToContent
             polylines={[
-              { id: "route", positions: routeGeometry.map((w) => [w.lat, w.lng] as [number, number]), color: "#8c8074", weight: 4 },
+              { id: "route", positions: routeGeometry.map((w) => [w.lat, w.lng] as [number, number]), color: "#64748b", weight: 4 },
               ...(observedPositions.length > 1
-                ? [{ id: "observed", positions: observedPositions, color: "#c28b38", weight: 5, dashArray: "2 6" }]
+                ? [{ id: "observed", positions: observedPositions, color: "#d97706", weight: 5, dashArray: "2 6" }]
                 : []),
             ]}
           />

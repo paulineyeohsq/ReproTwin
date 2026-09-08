@@ -43,7 +43,7 @@ const SECTIONS: SettingsSection[] = [
 export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-lg space-y-6 pb-4">
-      <h1 className="text-2xl font-bold tracking-tight text-slate-900">Settings</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-[var(--brand-title)]">Settings</h1>
 
       {SECTIONS.map((section) => (
         <div key={section.title}>

@@ -5,12 +5,21 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { EnvironmentalModeBadge } from "@/components/ui/EnvironmentalModeBadge";
 import { LeafletMap } from "@/components/map/LeafletMap";
 import type { MalaysiaStation } from "@/lib/liveEnvironment";
+import { aqiToPm25 } from "@/lib/aqiConversion";
+import { cn } from "@/lib/cn";
 import { Info } from "lucide-react";
+
+type Metric = "aqi" | "pm25";
 
 // Standard US EPA AQI bands — this is the composite Air Quality Index
 // WAQI's bulk station endpoint returns (not this app's own PM2.5-µg/m³
 // 3-tier scale used elsewhere), so it gets its own distinct legend/colours
-// rather than being forced into classifyPm25's categories.
+// rather than being forced into classifyPm25's categories. Severity
+// (colour/band) is always classified by the station's real AQI regardless
+// of which metric is displayed — AQI and PM2.5 are two numeric scales for
+// the same underlying reading via a monotonic conversion (see
+// lib/aqiConversion.ts), not two different measurements, so the toggle
+// below only changes which number is shown, never the colour.
 const AQI_BANDS = [
   { max: 50, label: "Good", color: "#059669" },
   { max: 100, label: "Moderate", color: "#d97706" },
@@ -22,6 +31,18 @@ const AQI_BANDS = [
 
 function bandFor(aqi: number) {
   return AQI_BANDS.find((b) => aqi <= b.max) ?? AQI_BANDS[AQI_BANDS.length - 1];
+}
+
+// The value + unit to display for one station under the active metric —
+// every place a number is shown reads from this single function, so the
+// map markers, popups, station list and detail card can never disagree
+// with each other about which metric is currently selected.
+function displayValue(aqi: number, metric: Metric): { value: number; unit: string; short: string } {
+  if (metric === "pm25") {
+    const pm25 = aqiToPm25(aqi);
+    return { value: pm25, unit: "µg/m³", short: `${Math.round(pm25)}` };
+  }
+  return { value: aqi, unit: "AQI", short: `${aqi}` };
 }
 
 function formatTime(iso: string) {
@@ -38,6 +59,7 @@ export function AirQualityMapClient({
   configured: boolean;
 }) {
   const [selected, setSelected] = useState<MalaysiaStation | null>(null);
+  const [metric, setMetric] = useState<Metric>("aqi");
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 pb-4">
@@ -48,7 +70,26 @@ export function AirQualityMapClient({
             Every currently-reporting DOE/JAS monitoring station nationwide, live.
           </p>
         </div>
-        {stations.length > 0 && <EnvironmentalModeBadge mode="live" />}
+        <div className="flex flex-col items-end gap-1.5">
+          {stations.length > 0 && <EnvironmentalModeBadge mode="live" />}
+          {stations.length > 0 && (
+            <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-medium">
+              {(["aqi", "pm25"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMetric(m)}
+                  aria-pressed={metric === m}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 transition-colors",
+                    metric === m ? "bg-[var(--brand)] text-white" : "text-slate-500 hover:bg-slate-50"
+                  )}
+                >
+                  {m === "aqi" ? "AQI Index" : "PM2.5 (µg/m³)"}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {!configured && (
@@ -86,19 +127,20 @@ export function AirQualityMapClient({
                 zoom={5}
                 markers={stations.map((s) => {
                   const band = bandFor(s.aqi);
+                  const dv = displayValue(s.aqi, metric);
                   return {
                     id: s.name,
                     lat: s.lat,
                     lng: s.lng,
                     color: band.color,
                     radius: 12,
-                    label: String(s.aqi),
+                    label: dv.short,
                     live: true,
                     popup: (
                       <div className="text-xs">
                         <div className="font-semibold">{s.name}</div>
                         <div>
-                          AQI {s.aqi} ({band.label})
+                          {metric === "aqi" ? `AQI ${dv.value}` : `${dv.value} µg/m³`} ({band.label})
                         </div>
                         <div className="text-slate-400">As of {formatTime(s.observedAt)}</div>
                       </div>
@@ -110,20 +152,30 @@ export function AirQualityMapClient({
             <div className="flex flex-wrap gap-x-3 gap-y-1.5 border-t border-[var(--card-border)] px-5 py-2.5 text-xs text-slate-500">
               {AQI_BANDS.map((b) => (
                 <span key={b.label} className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} /> {b.label}
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} />
+                  {b.label}
+                  {metric === "pm25" && (
+                    <span className="text-slate-400">
+                      ({b.max === Infinity ? `>${aqiToPm25(AQI_BANDS[AQI_BANDS.length - 2].max)}` : `≤${aqiToPm25(b.max)}`})
+                    </span>
+                  )}
                 </span>
               ))}
             </div>
           </Card>
 
           <Card>
-            <CardHeader title="All stations" subtitle="Sorted by AQI, highest first" />
+            <CardHeader
+              title="All stations"
+              subtitle={`Sorted by ${metric === "aqi" ? "AQI" : "PM2.5"}, highest first`}
+            />
             <CardBody className="max-h-96 overflow-y-auto p-0">
               <div className="divide-y divide-slate-100">
                 {[...stations]
                   .sort((a, b) => b.aqi - a.aqi)
                   .map((s) => {
                     const band = bandFor(s.aqi);
+                    const dv = displayValue(s.aqi, metric);
                     return (
                       <button
                         key={s.name}
@@ -132,7 +184,10 @@ export function AirQualityMapClient({
                       >
                         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: band.color }} />
                         <span className="flex-1 truncate text-sm text-slate-700">{s.name}</span>
-                        <span className="text-sm font-semibold text-slate-900">{s.aqi}</span>
+                        <span className="text-sm font-semibold text-slate-900">
+                          {dv.value}
+                          {metric === "pm25" && <span className="ml-1 text-xs font-normal text-slate-400">µg/m³</span>}
+                        </span>
                       </button>
                     );
                   })}
@@ -144,8 +199,11 @@ export function AirQualityMapClient({
             <Card>
               <CardHeader title={selected.name} subtitle={`As of ${formatTime(selected.observedAt)}`} />
               <CardBody className="text-sm text-slate-600">
-                AQI {selected.aqi} ({bandFor(selected.aqi).label}) · Source: DOE/JAS via World Air Quality
-                Index (WAQI) aggregator — attribution: aqicn.org
+                {metric === "aqi"
+                  ? `AQI ${selected.aqi} (${aqiToPm25(selected.aqi)} µg/m³)`
+                  : `${aqiToPm25(selected.aqi)} µg/m³ (AQI ${selected.aqi})`}{" "}
+                — {bandFor(selected.aqi).label} · Source: DOE/JAS via World Air Quality Index (WAQI)
+                aggregator — attribution: aqicn.org
               </CardBody>
             </Card>
           )}

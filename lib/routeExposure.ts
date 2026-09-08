@@ -109,6 +109,19 @@ export function computeRouteExposure(
   let pm25Sum = 0;
   let pm10Sum = 0;
   let no2Sum = 0;
+  // "Avg PM2.5" (below) is computed per distinct real *area* (station),
+  // not per resampled routing-graph segment — nearest-station matching has
+  // no distance cap, so many segments along one stretch can all resolve
+  // to the same single station, and averaging per segment would let that
+  // one reading dominate just because of how finely this stretch happened
+  // to be split into edges, not because of how much of the route it
+  // actually represents. Live-tier areas keep their raw AQI (not the
+  // per-segment converted PM2.5) so the average is taken in AQI space and
+  // converted once — aqiToPm25 is a nonlinear (EPA breakpoint) conversion,
+  // so averaging already-converted PM2.5 figures gives a different,
+  // less correct number than averaging the AQI readings themselves.
+  const liveAreaAqiByStation = new Map<string, number>();
+  const historicalAreaByStation = new Map<string, { pm25: number; pm10: number; no2: number }>();
 
   const n = route.segmentDistancesKm.length;
   for (let i = 0; i < n; i++) {
@@ -147,6 +160,7 @@ export function computeRouteExposure(
       pm25Source = ENVIRONMENT_SOURCE_LABEL;
       stationName = historical.stationName;
       stationDistanceKm = historical.distanceKm;
+      historicalAreaByStation.set(stationName, { pm25, pm10, no2 });
     } else if (nearestLive) {
       pm25 = aqiToPm25(nearestLive.station.aqi);
       pm10 = Math.round(pm25 * 1.7 * 10) / 10; // AQI's bulk endpoint gives no per-pollutant breakdown
@@ -154,6 +168,7 @@ export function computeRouteExposure(
       pm25Source = LIVE_STATIONS_SOURCE;
       stationName = nearestLive.station.name;
       stationDistanceKm = nearestLive.distanceKm;
+      liveAreaAqiByStation.set(stationName, nearestLive.station.aqi);
     } else {
       const sampled = samplePollutants(hour, roadType, trafficLevel, weather.wind_speed, rng);
       pm25 = sampled.pm25;
@@ -200,15 +215,46 @@ export function computeRouteExposure(
     no2Sum += no2;
   }
 
+  let avgPm25: number;
+  let avgPm10: number;
+  let avgNo2: number;
+
+  // Mirrors the same tier priority used for environmentalMode above
+  // (historical beats live beats synthetic) so a route that mixes tiers
+  // (e.g. mostly-historical with a few segments falling back to live
+  // where the historical dataset has no local coverage) reports an
+  // average consistent with the tier it's actually labelled as.
+  if (historicalAreaByStation.size > 0) {
+    const areas = [...historicalAreaByStation.values()];
+    avgPm25 = Math.round(average(areas.map((a) => a.pm25)) * 10) / 10;
+    avgPm10 = Math.round(average(areas.map((a) => a.pm10)) * 10) / 10;
+    avgNo2 = Math.round(average(areas.map((a) => a.no2)) * 10) / 10;
+  } else if (liveAreaAqiByStation.size > 0) {
+    const avgAqi = average([...liveAreaAqiByStation.values()]);
+    avgPm25 = Math.round(aqiToPm25(avgAqi) * 10) / 10;
+    avgPm10 = Math.round(avgPm25 * 1.7 * 10) / 10;
+    avgNo2 = 0;
+  } else {
+    // No real area data anywhere on this route (fully synthetic) — the
+    // per-segment average is the only figure available.
+    avgPm25 = segments.length ? Math.round((pm25Sum / segments.length) * 10) / 10 : 0;
+    avgPm10 = segments.length ? Math.round((pm10Sum / segments.length) * 10) / 10 : 0;
+    avgNo2 = segments.length ? Math.round((no2Sum / segments.length) * 10) / 10 : 0;
+  }
+
   return {
     segments,
     totalExposure: Math.round(totalExposure * 10) / 10,
-    avgPm25: segments.length ? Math.round((pm25Sum / segments.length) * 10) / 10 : 0,
-    avgPm10: segments.length ? Math.round((pm10Sum / segments.length) * 10) / 10 : 0,
-    avgNo2: segments.length ? Math.round((no2Sum / segments.length) * 10) / 10 : 0,
+    avgPm25,
+    avgPm10,
+    avgNo2,
     environmentalMode,
     trafficMode,
   };
+}
+
+function average(values: number[]): number {
+  return values.reduce((s, v) => s + v, 0) / values.length;
 }
 
 export function midpoint(coords: LatLng[]): LatLng {

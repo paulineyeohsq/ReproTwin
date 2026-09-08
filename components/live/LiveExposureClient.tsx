@@ -5,24 +5,44 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge, ExposureBadge } from "@/components/ui/Badge";
 import { StatTile } from "@/components/ui/StatTile";
+import { EnvironmentalModeBadge } from "@/components/ui/EnvironmentalModeBadge";
 import { LeafletMap } from "@/components/map/LeafletMap";
 import { BASE_ROUTES } from "@/lib/baseRoutes";
 import { resampleRoute, type ResampledPoint } from "@/lib/geo";
-import {
-  inferTrafficLevel,
-  sampleWeather,
-  samplePollutants,
-} from "@/lib/environment";
 import { segmentDose, sumExposure, classifyTripExposure } from "@/lib/exposure";
-import { mulberry32 } from "@/lib/rng";
 import { MAP_CENTER, ROAD_TYPE_LABELS, TRAFFIC_LEVEL_LABELS } from "@/lib/constants";
-import { MapPin, Navigation, Play, Square, Satellite } from "lucide-react";
+import type { EnvironmentalReading, PointTrafficReading } from "@/lib/types";
+import { MapPin, Navigation, Play, Square, Satellite, Loader2 } from "lucide-react";
 
 const ANIMATION_STEPS = 90;
 const STEP_MS = 180;
 const ASSUMED_SPEED_KMH = 27;
+// Real environmental/traffic data is fetched for a coarser set of points
+// along the route (not once per animation frame) — the same "bounded
+// samples along the route" approach used for live PM2.5/traffic elsewhere
+// (see lib/liveTraffic.ts), so starting a demo ride costs a fixed, small
+// number of real API calls regardless of ANIMATION_STEPS.
+const DATA_SAMPLE_COUNT = 16;
 
 type GeoState = "idle" | "requesting" | "tracking" | "denied";
+
+async function fetchEnvironmentReading(lat: number, lng: number): Promise<EnvironmentalReading> {
+  const res = await fetch(`/api/environment?lat=${lat}&lng=${lng}`);
+  if (!res.ok) throw new Error("environment fetch failed");
+  const json = await res.json();
+  return json.reading as EnvironmentalReading;
+}
+
+async function fetchTrafficReading(
+  lat: number,
+  lng: number,
+  hour: number,
+  roadType: string
+): Promise<PointTrafficReading> {
+  const res = await fetch(`/api/traffic?lat=${lat}&lng=${lng}&hour=${hour}&roadType=${roadType}`);
+  if (!res.ok) throw new Error("traffic fetch failed");
+  return res.json();
+}
 
 export function LiveExposureClient() {
   const [geoState, setGeoState] = useState<GeoState>("idle");
@@ -34,12 +54,13 @@ export function LiveExposureClient() {
   const watchIdRef = useRef<number | null>(null);
 
   const [routeId, setRouteId] = useState(BASE_ROUTES[0].id);
-  const [rideState, setRideState] = useState<"idle" | "playing" | "finished">("idle");
+  const [rideState, setRideState] = useState<"idle" | "loading" | "playing" | "finished">("idle");
   const [stepIndex, setStepIndex] = useState(0);
   const [doses, setDoses] = useState<number[]>([]);
+  const [readings, setReadings] = useState<EnvironmentalReading[]>([]);
+  const [trafficReadings, setTrafficReadings] = useState<PointTrafficReading[]>([]);
+  const [dataError, setDataError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const rngRef = useRef(mulberry32(1));
-  const hourRef = useRef(18);
 
   const route = useMemo(
     () => BASE_ROUTES.find((r) => r.id === routeId) ?? BASE_ROUTES[0],
@@ -51,23 +72,34 @@ export function LiveExposureClient() {
     [route]
   );
 
+  // A coarser sample set than `resampled` — see DATA_SAMPLE_COUNT.
+  const dataPoints = useMemo<ResampledPoint[]>(
+    () => resampleRoute(route.waypoints, DATA_SAMPLE_COUNT),
+    [route]
+  );
+
   const stepDistanceKm = route.distanceKm / (resampled.length - 1 || 1);
   const stepDurationHours = stepDistanceKm / ASSUMED_SPEED_KMH;
 
   const currentPoint = resampled[Math.min(stepIndex, resampled.length - 1)];
-  const currentSample = useMemo(() => {
-    if (!currentPoint) return null;
-    const trafficLevel = inferTrafficLevel(hourRef.current, currentPoint.roadType, rngRef.current);
-    const weather = sampleWeather(hourRef.current, rngRef.current);
-    const { pm25, pm10, no2 } = samplePollutants(
-      hourRef.current,
-      currentPoint.roadType,
-      trafficLevel,
-      weather.wind_speed,
-      rngRef.current
-    );
-    return { trafficLevel, pm25, pm10, no2, weather };
-  }, [currentPoint]);
+  const dataIndex =
+    dataPoints.length <= 1
+      ? 0
+      : Math.min(
+          dataPoints.length - 1,
+          Math.round((stepIndex / (ANIMATION_STEPS - 1)) * (dataPoints.length - 1))
+        );
+  const currentReading = readings[dataIndex] ?? null;
+  const currentTraffic = trafficReadings[dataIndex] ?? null;
+  const currentSample =
+    currentReading && currentTraffic
+      ? {
+          trafficLevel: currentTraffic.trafficLevel,
+          pm25: currentReading.pm25,
+          pm10: currentReading.pm10,
+          no2: currentReading.no2,
+        }
+      : null;
 
   function startLocationTracking() {
     if (!("geolocation" in navigator)) {
@@ -109,20 +141,38 @@ export function LiveExposureClient() {
     };
   }, []);
 
-  function startDemoRide() {
+  async function startDemoRide() {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    rngRef.current = mulberry32(Date.now() & 0xffffffff);
-    hourRef.current = new Date().getHours();
+    const now = new Date();
+    let hour = now.getHours();
     // Keep the simulated hour within the rider's typical commute peaks
-    // (07:00-09:00 or 17:00-20:00) so the environmental model reflects
-    // realistic rush-hour conditions.
-    const inMorningPeak = hourRef.current >= 7 && hourRef.current < 9;
-    const inEveningPeak = hourRef.current >= 17 && hourRef.current < 20;
-    if (!inMorningPeak && !inEveningPeak) hourRef.current = 18;
+    // (07:00-09:00 or 17:00-20:00), used only to bias the traffic API's
+    // synthetic fallback tier toward realistic rush-hour congestion when
+    // TomTom isn't configured — real PM2.5/traffic readings (when
+    // available) reflect actual current conditions regardless of this.
+    const inMorningPeak = hour >= 7 && hour < 9;
+    const inEveningPeak = hour >= 17 && hour < 20;
+    if (!inMorningPeak && !inEveningPeak) hour = 18;
+
     setStepIndex(0);
     setDoses([]);
-    setRideState("playing");
+    setDataError(null);
+    setRideState("loading");
 
+    try {
+      const [envResults, trafficResults] = await Promise.all([
+        Promise.all(dataPoints.map((p) => fetchEnvironmentReading(p.lat, p.lng))),
+        Promise.all(dataPoints.map((p) => fetchTrafficReading(p.lat, p.lng, hour, p.roadType))),
+      ]);
+      setReadings(envResults);
+      setTrafficReadings(trafficResults);
+    } catch {
+      setDataError("Couldn't reach real environmental/traffic data sources — try again.");
+      setRideState("idle");
+      return;
+    }
+
+    setRideState("playing");
     intervalRef.current = setInterval(() => {
       setStepIndex((prev) => {
         const next = prev + 1;
@@ -141,14 +191,20 @@ export function LiveExposureClient() {
     setRideState("idle");
     setStepIndex(0);
     setDoses([]);
+    setReadings([]);
+    setTrafficReadings([]);
+    setDataError(null);
   }
 
-  // Accumulate dose whenever the current sample changes during playback.
+  // Accumulate dose whenever the current sample changes during playback —
+  // real PM2.5 (from the tiered live/historical/synthetic data resolved at
+  // ride start) x real elapsed time for this step, same dose formula as
+  // the route advisor (lib/routeExposure.ts).
   useEffect(() => {
-    if (rideState !== "playing" || !currentSample) return;
+    if (rideState !== "playing" || !currentSample || currentSample.pm25 === null) return;
     setDoses((prev) => [
       ...prev,
-      segmentDose(currentSample.pm25, stepDurationHours),
+      segmentDose(currentSample.pm25 as number, stepDurationHours),
     ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepIndex, rideState]);
@@ -281,13 +337,16 @@ export function LiveExposureClient() {
           </Card>
 
           <Card>
-            <CardHeader title="Demo ride" />
+            <CardHeader
+              title="Demo ride"
+              subtitle="Real PM2.5 + traffic data fetched for points along a fixed demo path — only the ride's motion/timing is simulated"
+            />
             <CardBody className="space-y-3">
               <select
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 value={routeId}
                 onChange={(e) => setRouteId(e.target.value)}
-                disabled={rideState === "playing"}
+                disabled={rideState === "playing" || rideState === "loading"}
               >
                 {BASE_ROUTES.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -299,9 +358,17 @@ export function LiveExposureClient() {
                 <Button
                   size="sm"
                   onClick={startDemoRide}
-                  disabled={rideState === "playing"}
+                  disabled={rideState === "playing" || rideState === "loading"}
                 >
-                  <Play className="h-3.5 w-3.5" /> Start Demo Ride
+                  {rideState === "loading" ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Fetching real data…
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-3.5 w-3.5" /> Start Demo Ride
+                    </>
+                  )}
                 </Button>
                 <Button
                   size="sm"
@@ -312,12 +379,13 @@ export function LiveExposureClient() {
                   <Square className="h-3.5 w-3.5" /> Stop
                 </Button>
               </div>
+              {dataError && <p className="text-xs text-rose-600">{dataError}</p>}
             </CardBody>
           </Card>
         </div>
       </div>
 
-      {rideState !== "idle" && currentSample && (
+      {(rideState === "playing" || rideState === "finished") && currentSample && (
         <Card>
           <CardHeader
             title="Ride exposure telemetry"
@@ -326,12 +394,13 @@ export function LiveExposureClient() {
                 ? "Ride complete"
                 : `${route.name} — in progress`
             }
+            action={currentReading ? <EnvironmentalModeBadge mode={currentReading.mode} /> : undefined}
           />
           <CardBody>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <StatTile label="PM2.5" value={currentSample.pm25} unit="µg/m³" />
-              <StatTile label="PM10" value={currentSample.pm10} unit="µg/m³" />
-              <StatTile label="NO2" value={currentSample.no2} unit="ppb" />
+              <StatTile label="PM2.5" value={currentSample.pm25 ?? "—"} unit="µg/m³" />
+              <StatTile label="PM10" value={currentSample.pm10 ?? "—"} unit="µg/m³" />
+              <StatTile label="NO2" value={currentSample.no2 ?? "—"} unit="ppb" />
               <StatTile
                 label="Cumulative exposure"
                 value={cumulativeExposure.toFixed(1)}
@@ -350,11 +419,16 @@ export function LiveExposureClient() {
               </Badge>
               <Badge className="border-slate-200 bg-slate-50 text-slate-600">
                 Traffic: {TRAFFIC_LEVEL_LABELS[currentSample.trafficLevel]}
-              </Badge>
-              <Badge className="border-slate-200 bg-slate-50 text-slate-600">
-                Simulated hour: {hourRef.current}:00
+                {currentTraffic ? ` (${currentTraffic.mode})` : ""}
               </Badge>
             </div>
+            {currentReading && (
+              <p className="mt-2 text-xs text-slate-500">
+                PM2.5 source: {currentReading.source}
+                {currentReading.stationName ? ` — ${currentReading.stationName}` : ""}
+                {currentReading.distanceKm !== undefined ? ` (${currentReading.distanceKm} km away)` : ""}
+              </p>
+            )}
           </CardBody>
         </Card>
       )}

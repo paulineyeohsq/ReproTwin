@@ -19,6 +19,18 @@ export type TrafficMode = "live" | "synthetic";
 
 export type MeasurementKind = "measured" | "estimated";
 
+// A single, fully-provenanced traffic-congestion reading for one point —
+// the traffic-side counterpart to EnvironmentalReading below, returned by
+// GET /api/traffic (see lib/liveTraffic.ts for the underlying TomTom
+// integration this tiers over).
+export interface PointTrafficReading {
+  trafficLevel: TrafficLevel;
+  mode: TrafficMode;
+  source: string;
+  currentSpeedKmh?: number;
+  freeFlowSpeedKmh?: number;
+}
+
 // A single, fully-provenanced environmental observation for one point in
 // space and time. Every value the UI displays as "current conditions" must
 // come from this shape, never a bare number, so the source/freshness/

@@ -226,7 +226,11 @@ partial number when the loaded range is short.
   server-side), defaulting to Klang Valley, plus a nationwide snapshot
   at fixed major-city sample points (not a station network — see
   `lib/liveTraffic.ts` for why the snapshot can't be a bulk query).
-- **Live Exposure Demo** — kept from earlier work.
+- **Live Exposure Demo** (`/live-exposure`) — an animated ride along a fixed
+  demo path (or the browser's own live GPS), with real PM2.5/traffic data
+  fetched per point along the way (`app/api/environment`, `app/api/traffic`
+  — same live/historical/synthetic tiering used elsewhere) rather than a
+  fabricated reading; only the ride's motion/timing is simulated.
 - **Rider Profile** (`/profile`) — a tabbed page absorbing what used to be
   four separate routes: **Overview** (current status, exposure trend,
   route-recommendation preview, personalised recommendations — formerly

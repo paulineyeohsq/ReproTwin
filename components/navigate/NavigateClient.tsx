@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/Button";
 import { BottomSheet, type SheetState } from "@/components/ui/BottomSheet";
 import { LeafletMap } from "@/components/map/LeafletMap";
 import { useImmersive } from "@/components/layout/AppShell";
-import { MAP_CENTER, POPULAR_DESTINATIONS, ORIGIN_LABEL } from "@/lib/constants";
+import { MAP_CENTER, POPULAR_DESTINATIONS, ORIGIN_LABEL, TRAFFIC_LEVEL_LABELS } from "@/lib/constants";
 import { classifyPm25 } from "@/lib/exposure";
 import { haversineKm } from "@/lib/geo";
 import { saveTrip, newTripId, getAllTrips, type GpsObservation, type EnvironmentalSnapshot, type RecordedTrip } from "@/lib/tripStore";
-import type { CandidateRoute, RouteProfile, EnvironmentalReading } from "@/lib/types";
+import type { CandidateRoute, RouteProfile, TrafficLevel, EnvironmentalReading } from "@/lib/types";
 import { cn } from "@/lib/cn";
 import {
   MapPin,
@@ -24,7 +24,14 @@ import {
   Leaf,
   CheckCircle2,
   Wind,
+  Gauge,
 } from "lucide-react";
+
+const TRAFFIC_LEVEL_COLOR: Record<TrafficLevel, string> = {
+  low: "text-emerald-600",
+  moderate: "text-amber-600",
+  heavy: "text-rose-600",
+};
 
 type GpsState = "idle" | "requesting" | "tracking" | "denied" | "unsupported";
 type RideState = "setup" | "loading_routes" | "comparing" | "permission" | "riding" | "paused" | "summary";
@@ -761,6 +768,14 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
                     })()}
                     {PROFILE_META[selectedRoute.profile].label}
                   </div>
+                  <div className="mt-1 flex items-center gap-2.5 text-[11px] text-slate-500">
+                    <span className={cn("flex items-center gap-1 font-medium", TRAFFIC_LEVEL_COLOR[selectedRoute.trafficLevel])}>
+                      <Gauge className="h-3 w-3" /> {TRAFFIC_LEVEL_LABELS[selectedRoute.trafficLevel]} traffic
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Wind className="h-3 w-3" /> AQI {selectedRoute.avgAqi} · {selectedRoute.avgPm25} µg/m³
+                    </span>
+                  </div>
                 </div>
                 {sheetState === "collapsed" && (
                   <Button size="sm" onClick={requestStartRide}>
@@ -823,6 +838,14 @@ export function NavigateClient({ initialReading }: { initialReading: Environment
                         : pctVsFastest < 0
                         ? `↑ ${Math.abs(pctVsFastest)}% higher estimated exposure`
                         : "Same estimated exposure"}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-slate-500">
+                      <span className={cn("flex items-center gap-1 font-medium", TRAFFIC_LEVEL_COLOR[c.trafficLevel])}>
+                        <Gauge className="h-3 w-3" /> {TRAFFIC_LEVEL_LABELS[c.trafficLevel]} traffic
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Wind className="h-3 w-3" /> AQI {c.avgAqi} · {c.avgPm25} µg/m³
+                      </span>
                     </div>
                   </div>
                 </button>

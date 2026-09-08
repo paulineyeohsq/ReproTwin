@@ -1,10 +1,11 @@
-import type { BaseRoute, CandidateRoute, RoadType, RouteProfile, RouteWaypointDef } from "./types";
+import type { BaseRoute, CandidateRoute, RoadType, RouteProfile, RouteWaypointDef, TrafficLevel } from "./types";
 import { findBaseRouteByDestination } from "./baseRoutes";
 import { resampleRoute, routeDistanceKm } from "./geo";
 import { inferTrafficLevel, sampleWeather, samplePollutants } from "./environment";
 import { mulberry32, hashStringToSeed } from "./rng";
 import { fetchDiverseRoadRoutes, type LatLng, type OsrmRouteResult } from "./routingEngine";
 import { computeRouteExposure } from "./routeExposure";
+import { pm25ToAqi } from "./aqiConversion";
 import { fetchMalaysiaStations } from "./liveEnvironment";
 import { fetchLiveTrafficForRoute, averageTrafficRatio } from "./liveTraffic";
 import { ADVISOR_HOUR, PREFERENCE_WEIGHTS } from "./routeScoring";
@@ -79,6 +80,8 @@ function buildCandidate(
 
   let totalExposure = 0;
   let pm25Sum = 0;
+  const trafficSeverity: Record<TrafficLevel, number> = { low: 0, moderate: 1, heavy: 2 };
+  let severitySum = 0;
   const stepDistanceKm = distanceKm / (points.length - 1 || 1);
   const stepDurationHours = stepDistanceKm / cfg.speedKmh;
 
@@ -94,10 +97,15 @@ function buildCandidate(
       rng
     );
     pm25Sum += pm25;
+    severitySum += trafficSeverity[trafficLevel];
     // Real dose formula (concentration x time) — no model, matching
     // computeRouteExposure's real-road calculation.
     totalExposure += pm25 * stepDurationHours;
   }
+
+  const avgPm25 = Math.round((pm25Sum / points.length) * 10) / 10;
+  const avgSeverity = severitySum / points.length;
+  const trafficLevel: TrafficLevel = avgSeverity < 0.5 ? "low" : avgSeverity < 1.5 ? "moderate" : "heavy";
 
   return {
     id: `${base.id}-${profile}`,
@@ -108,7 +116,11 @@ function buildCandidate(
     travelTimeMin: Math.round(travelTimeMin),
     predictedExposure: Math.round(totalExposure * 10) / 10,
     waypoints,
-    avgPm25: Math.round((pm25Sum / points.length) * 10) / 10,
+    avgPm25,
+    // No real AQI reading exists for a purely synthetic route — derived
+    // equivalent via the standard EPA breakpoint conversion.
+    avgAqi: pm25ToAqi(avgPm25),
+    trafficLevel,
     roadNetworkSource: PROCEDURAL_ROAD_SOURCE,
     environmentalMode: "synthetic",
     trafficMode: "synthetic",
@@ -158,6 +170,8 @@ function osrmRouteToCandidate(
     avgPm25: exposure.avgPm25,
     avgPm10: exposure.avgPm10,
     avgNo2: exposure.avgNo2,
+    avgAqi: exposure.avgAqi,
+    trafficLevel: exposure.trafficLevel,
     geometry: route.coordinates,
     segments: exposure.segments.map((s) => ({
       lat: s.lat,

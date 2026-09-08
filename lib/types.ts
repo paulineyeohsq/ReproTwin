@@ -151,6 +151,16 @@ export interface CandidateRoute {
   avgPm25: number;
   avgPm10?: number;
   avgNo2?: number;
+  // The real Air Quality Index averaged from live stations along the
+  // route when available (environmentalMode "live"); otherwise the
+  // standard EPA breakpoint conversion of avgPm25 — a derived equivalent,
+  // not a directly-reported index, for historical/synthetic tiers.
+  avgAqi: number;
+  // Route-level aggregate (duration-weighted) of the same per-segment
+  // traffic congestion used for exposure/timing — live TomTom-derived
+  // when trafficMode is "live", the synthetic hour/road-type model
+  // otherwise.
+  trafficLevel: TrafficLevel;
   // Full-resolution, real road-following geometry when available (OSRM);
   // falls back to `waypoints` for the map when absent.
   geometry?: { lat: number; lng: number }[];

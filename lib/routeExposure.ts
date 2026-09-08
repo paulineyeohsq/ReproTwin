@@ -19,7 +19,7 @@ import { segmentDose, classifyPm25, average } from "./exposure";
 import { mulberry32, hashStringToSeed } from "./rng";
 import { getDataModeStatus } from "./dataMode";
 import { getLatestHistoricalReading, ENVIRONMENT_SOURCE_LABEL } from "./realDataEngine";
-import { aqiToPm25 } from "./aqiConversion";
+import { aqiToPm25, pm25ToAqi } from "./aqiConversion";
 import { haversineKm } from "./geo";
 import type { MalaysiaStation } from "./liveEnvironment";
 import { nearestTrafficSample, LIVE_TRAFFIC_SOURCE, type LiveTrafficSample } from "./liveTraffic";
@@ -75,9 +75,19 @@ export interface RouteExposureResult {
   avgPm25: number;
   avgPm10: number;
   avgNo2: number;
+  // Real AQI averaged from live stations when environmentalMode is "live";
+  // otherwise the standard EPA breakpoint conversion of avgPm25 (see
+  // pm25ToAqi in lib/aqiConversion.ts) — a derived equivalent for tiers
+  // that only ever have a µg/m³ concentration, never a reported index.
+  avgAqi: number;
+  // Route-level, duration-weighted aggregate of the same per-segment
+  // traffic congestion used for exposure/timing.
+  trafficLevel: TrafficLevel;
   environmentalMode: EnvironmentalMode;
   trafficMode: TrafficMode;
 }
+
+const TRAFFIC_SEVERITY: Record<TrafficLevel, number> = { low: 0, moderate: 1, heavy: 2 };
 
 export function computeRouteExposure(
   routeId: string,
@@ -122,6 +132,8 @@ export function computeRouteExposure(
   // less correct number than averaging the AQI readings themselves.
   const liveAreaAqiByStation = new Map<string, number>();
   const historicalAreaByStation = new Map<string, { pm25: number; pm10: number; no2: number }>();
+  let trafficWeightedSeverity = 0;
+  let trafficWeightTotal = 0;
 
   const n = route.segmentDistancesKm.length;
   for (let i = 0; i < n; i++) {
@@ -213,11 +225,14 @@ export function computeRouteExposure(
     pm25Sum += pm25;
     pm10Sum += pm10;
     no2Sum += no2;
+    trafficWeightedSeverity += TRAFFIC_SEVERITY[trafficLevel] * durationMin;
+    trafficWeightTotal += durationMin;
   }
 
   let avgPm25: number;
   let avgPm10: number;
   let avgNo2: number;
+  let avgAqi: number;
 
   // Mirrors the same tier priority used for environmentalMode above
   // (historical beats live beats synthetic) so a route that mixes tiers
@@ -229,18 +244,27 @@ export function computeRouteExposure(
     avgPm25 = Math.round(average(areas.map((a) => a.pm25)) * 10) / 10;
     avgPm10 = Math.round(average(areas.map((a) => a.pm10)) * 10) / 10;
     avgNo2 = Math.round(average(areas.map((a) => a.no2)) * 10) / 10;
+    // Historical readings are concentrations, never a reported index —
+    // AQI here is a derived equivalent, not a real measurement.
+    avgAqi = pm25ToAqi(avgPm25);
   } else if (liveAreaAqiByStation.size > 0) {
-    const avgAqi = average([...liveAreaAqiByStation.values()]);
-    avgPm25 = Math.round(aqiToPm25(avgAqi) * 10) / 10;
+    const avgAqiRaw = average([...liveAreaAqiByStation.values()]);
+    avgPm25 = Math.round(aqiToPm25(avgAqiRaw) * 10) / 10;
     avgPm10 = Math.round(avgPm25 * 1.7 * 10) / 10;
     avgNo2 = 0;
+    // The real averaged AQI itself, not re-derived from the rounded PM2.5.
+    avgAqi = Math.round(avgAqiRaw);
   } else {
     // No real area data anywhere on this route (fully synthetic) — the
     // per-segment average is the only figure available.
     avgPm25 = segments.length ? Math.round((pm25Sum / segments.length) * 10) / 10 : 0;
     avgPm10 = segments.length ? Math.round((pm10Sum / segments.length) * 10) / 10 : 0;
     avgNo2 = segments.length ? Math.round((no2Sum / segments.length) * 10) / 10 : 0;
+    avgAqi = pm25ToAqi(avgPm25);
   }
+
+  const avgTrafficSeverity = trafficWeightTotal > 0 ? trafficWeightedSeverity / trafficWeightTotal : 0;
+  const trafficLevel: TrafficLevel = avgTrafficSeverity < 0.5 ? "low" : avgTrafficSeverity < 1.5 ? "moderate" : "heavy";
 
   return {
     segments,
@@ -248,6 +272,8 @@ export function computeRouteExposure(
     avgPm25,
     avgPm10,
     avgNo2,
+    avgAqi,
+    trafficLevel,
     environmentalMode,
     trafficMode,
   };

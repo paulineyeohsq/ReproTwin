@@ -25,3 +25,16 @@ export function aqiToPm25(aqi: number): number {
   const pm25 = ((aqi - bp.aqiLow) * (bp.concHigh - bp.concLow)) / (bp.aqiHigh - bp.aqiLow) + bp.concLow;
   return Math.round(pm25 * 10) / 10;
 }
+
+// The forward direction of the same breakpoint table — a real, derived AQI
+// equivalent for a PM2.5 concentration that didn't come from a live AQI
+// reading in the first place (historical CSV / synthetic tiers, which only
+// ever have a µg/m³ concentration, never a reported index). Used so routes
+// can show "AQI X" consistently across tiers rather than only when the
+// live WAQI tier happens to be active.
+export function pm25ToAqi(pm25: number): number {
+  const bp =
+    BREAKPOINTS.find((b) => pm25 >= b.concLow && pm25 <= b.concHigh) ?? BREAKPOINTS[BREAKPOINTS.length - 1];
+  const aqi = ((bp.aqiHigh - bp.aqiLow) * (pm25 - bp.concLow)) / (bp.concHigh - bp.concLow) + bp.aqiLow;
+  return Math.round(aqi);
+}

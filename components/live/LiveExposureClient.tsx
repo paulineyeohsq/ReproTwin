@@ -91,6 +91,20 @@ async function fetchTrafficReading(
   return res.json();
 }
 
+// Keep the simulated hour within the rider's typical commute peaks
+// (07:00-09:00 or 17:00-20:00), used only to bias the traffic API's
+// synthetic fallback tier toward realistic rush-hour congestion when
+// TomTom isn't configured — real PM2.5/traffic readings (when available)
+// reflect actual current conditions regardless of this. Re-resolved on
+// every fetch (not just once at ride start) so a demo ride that happens to
+// straddle a peak-hour boundary still biases each fetch correctly.
+function resolveDemoHour(): number {
+  const hour = new Date().getHours();
+  const inMorningPeak = hour >= 7 && hour < 9;
+  const inEveningPeak = hour >= 17 && hour < 20;
+  return inMorningPeak || inEveningPeak ? hour : 18;
+}
+
 export function LiveExposureClient() {
   // --- real browser GPS tracking (independent of route planning below) ---
   const [geoState, setGeoState] = useState<GeoState>("idle");
@@ -127,6 +141,10 @@ export function LiveExposureClient() {
   const [trafficReadings, setTrafficReadings] = useState<PointTrafficReading[]>([]);
   const [dataError, setDataError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Which data-point index the live refetch effect below has already
+  // fetched fresh data for during this playback — starts at -1 so the
+  // effect knows nothing has been refetched yet.
+  const fetchedDataIndexRef = useRef<number>(-1);
 
   function stopDemoRide() {
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -136,6 +154,7 @@ export function LiveExposureClient() {
     setReadings([]);
     setTrafficReadings([]);
     setDataError(null);
+    fetchedDataIndexRef.current = -1;
   }
 
   async function fetchRoutes(nextOrigin: Place, nextDestination: Place) {
@@ -327,16 +346,7 @@ export function LiveExposureClient() {
   async function startDemoRide() {
     if (!selectedRoute || resampled.length < 2 || dataPoints.length < 1) return;
     if (intervalRef.current) clearInterval(intervalRef.current);
-    const now = new Date();
-    let hour = now.getHours();
-    // Keep the simulated hour within the rider's typical commute peaks
-    // (07:00-09:00 or 17:00-20:00), used only to bias the traffic API's
-    // synthetic fallback tier toward realistic rush-hour congestion when
-    // TomTom isn't configured — real PM2.5/traffic readings (when
-    // available) reflect actual current conditions regardless of this.
-    const inMorningPeak = hour >= 7 && hour < 9;
-    const inEveningPeak = hour >= 17 && hour < 20;
-    if (!inMorningPeak && !inEveningPeak) hour = 18;
+    const hour = resolveDemoHour();
 
     setStepIndex(0);
     setDoses([]);
@@ -350,6 +360,10 @@ export function LiveExposureClient() {
       ]);
       setReadings(envResults);
       setTrafficReadings(trafficResults);
+      // Data point 0 is covered by the batch fetch above — mark it so the
+      // live-refetch effect doesn't immediately redo it the moment
+      // playback starts.
+      fetchedDataIndexRef.current = 0;
     } catch {
       setDataError("Couldn't reach real environmental/traffic data sources — try again.");
       setRideState("idle");
@@ -382,6 +396,44 @@ export function LiveExposureClient() {
     ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepIndex, rideState]);
+
+  // Re-fetch real PM2.5/traffic each time playback advances into a new
+  // data-point index, rather than relying solely on the one-time batch
+  // fetched at ride start — so a reading shown partway through a ride
+  // reflects conditions as of when the rider actually reaches that point,
+  // not a stale snapshot from several seconds (or, on a slower connection,
+  // longer) earlier. Bounded to at most one fetch per data point per ride,
+  // same as the initial batch, via fetchedDataIndexRef.
+  useEffect(() => {
+    if (rideState !== "playing") return;
+    if (dataPoints.length === 0) return;
+    if (fetchedDataIndexRef.current === dataIndex) return;
+    fetchedDataIndexRef.current = dataIndex;
+
+    const point = dataPoints[dataIndex];
+    const hour = resolveDemoHour();
+    Promise.all([
+      fetchEnvironmentReading(point.lat, point.lng),
+      fetchTrafficReading(point.lat, point.lng, hour, DEFAULT_ROAD_TYPE),
+    ])
+      .then(([env, traffic]) => {
+        setReadings((prev) => {
+          const next = [...prev];
+          next[dataIndex] = env;
+          return next;
+        });
+        setTrafficReadings((prev) => {
+          const next = [...prev];
+          next[dataIndex] = traffic;
+          return next;
+        });
+      })
+      .catch(() => {
+        // Keep whatever value is already showing for this point (from the
+        // initial batch, or a prior successful refetch) rather than
+        // interrupting playback over one failed background refresh.
+      });
+  }, [dataIndex, rideState, dataPoints]);
 
   const cumulativeExposure = sumExposure(doses);
   const exposureLevel = classifyTripExposure(cumulativeExposure);
@@ -641,7 +693,7 @@ export function LiveExposureClient() {
           <Card>
             <CardHeader
               title="Demo ride"
-              subtitle="Follows the selected route below — real PM2.5/traffic fetched along it, only motion/timing is simulated"
+              subtitle="Follows the selected route below — real PM2.5/traffic refetched live as the ride reaches each point, only motion/timing is simulated"
             />
             <CardBody className="space-y-3">
               <div className="flex gap-2">
